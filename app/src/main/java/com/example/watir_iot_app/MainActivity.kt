@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.watir_iot_app.core.navigation.AppNavigation
 import com.example.watir_iot_app.ui.theme.WATIR_IoT_APPTheme
 
 class MainActivity : ComponentActivity() {
@@ -19,12 +20,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             WATIR_IoT_APPTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                AppNavigation()
             }
         }
     }

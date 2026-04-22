@@ -65,4 +65,6 @@ dependencies {
     // Komunikacja z API (Retrofit)
     implementation(libs.retrofit.core)
     implementation(libs.retrofit.gson)
+    // Rozszerzone ikony Material Design
+    implementation(libs.androidx.material.icons.extended)
 }

@@ -29,7 +29,7 @@ androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-te
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 # Nawigacja
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
-
+androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 # Wykresy (Vico) - wariant dla Material 3
 vico-compose = { group = "com.patrykandpatrick.vico", name = "compose", version.ref = "vico" }
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
