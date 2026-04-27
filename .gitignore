@@ -58,3 +58,7 @@ dkms.conf
 .idea/
 build/
 local.properties
+
+# pliki env
+.env
+.env.example
