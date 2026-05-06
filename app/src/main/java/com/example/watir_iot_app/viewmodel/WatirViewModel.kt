@@ -19,14 +19,21 @@ class WatirViewModel : ViewModel(){
     val isConnected: State<Boolean> = _isConnected
 
     fun connectToServer(ipAddress: String) {
-        try {
-            watirAPI = APIClients.createClientAPI(ipAddress)
-            _isConnected.value = true
+        viewModelScope.launch {
+            try {
+                val api = APIClients.createClientAPI(ipAddress)
 
-            fetchHistory()
-        } catch (e: Exception) {
-            _isConnected.value = false
-            println("Failed to build a client: ${e.message}")
+                val response = api.getTelemetryHistory()
+
+                watirAPI = api
+                _telemetryHistory.value = response
+                _isConnected.value = true
+
+            } catch (e: Exception) {
+                watirAPI = null
+                _isConnected.value = false
+                println("Failed to connect: ${e.message}")
+            }
         }
     }
 
