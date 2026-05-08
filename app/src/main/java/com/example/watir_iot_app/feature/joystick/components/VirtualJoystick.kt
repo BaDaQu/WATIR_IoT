@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
     var thumbOffset by remember { mutableStateOf(Offset.Zero) }
     Canvas(modifier =
         Modifier
-            .size(200.dp)
+            .size(300.dp)
             .pointerInput(Unit){
                 detectDragGestures(
                     onDragEnd = { thumbOffset = Offset.Zero}
@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
                     change.consume()
                     val newOffset = thumbOffset + dragAmount
                     val distance = newOffset.getDistance()
-                    val maxRadius = 100f
+                    val maxRadius = 150f
                     if(distance <= maxRadius){
                         thumbOffset = newOffset
                     }
@@ -40,11 +40,11 @@ import androidx.compose.ui.unit.dp
             }) {
         drawCircle(
             color = Color.LightGray,
-            radius = 100f
+            radius = 150f
         )
         drawCircle(
             color = Color.Blue,
-            radius = 40f,
+            radius = 50f,
             center = center + thumbOffset
         )
     }
