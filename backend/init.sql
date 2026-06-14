@@ -1,5 +1,10 @@
+-- ==========================================
+-- WATIR IoT — Inicjalizacja bazy danych
+-- Issue #22: Optymalizacja zapytań i retencja
+-- ==========================================
+
 -- Tabela 1: Logi Telemetryczne (Zrzuty z czujników ESP8266)
-CREATE TABLE telemetry_logs (
+CREATE TABLE IF NOT EXISTS telemetry_logs (
     id SERIAL PRIMARY KEY,
     device_id VARCHAR(50) NOT NULL,
     timestamp BIGINT NOT NULL,          -- UNIX Epoch z JSONa
@@ -15,14 +20,40 @@ CREATE TABLE telemetry_logs (
 );
 
 -- Tabela 2: Profile Roślin (Konfiguracja dla ESP8266)
-CREATE TABLE plant_profiles (
+CREATE TABLE IF NOT EXISTS plant_profiles (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,          
-    moisture_threshold INT NOT NULL,    
-    auto_watering BOOLEAN DEFAULT true, 
-    check_interval_ms INT DEFAULT 10000 
+    name VARCHAR(50) NOT NULL,
+    moisture_threshold INT NOT NULL,
+    auto_watering BOOLEAN DEFAULT true,
+    check_interval_ms INT DEFAULT 10000
 );
 
--- Wrzucamy testowy profil rośliny
+-- ==========================================
+-- INDEKSY — Issue #22: Optymalizacja zapytań
+-- ==========================================
+
+-- Indeks główny: backend zawsze robi ORDER BY timestamp DESC
+-- Największy zysk wydajnościowy przy dużej tabeli
+CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp
+    ON telemetry_logs (timestamp DESC);
+
+-- Indeks pomocniczy: filtrowanie po urządzeniu (GET /api/telemetry?device_id=...)
+-- Potrzebny gdy w sieci jest więcej niż jedno urządzenie WATIR
+CREATE INDEX IF NOT EXISTS idx_telemetry_device_id
+    ON telemetry_logs (device_id);
+
+-- Indeks złożony: device_id + timestamp razem — najszybszy dla zapytań
+-- "ostatnie N rekordów z konkretnego urządzenia"
+CREATE INDEX IF NOT EXISTS idx_telemetry_device_timestamp
+    ON telemetry_logs (device_id, timestamp DESC);
+
+-- ==========================================
+-- DANE TESTOWE
+-- ==========================================
+
+-- Wrzucamy testowy profil rośliny (jeśli nie istnieje)
 INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms)
-VALUES ('Kaktus_Testowy', 200, true, 10000);
+SELECT 'Kaktus_Testowy', 200, true, 10000
+WHERE NOT EXISTS (
+    SELECT 1 FROM plant_profiles WHERE name = 'Kaktus_Testowy'
+);
