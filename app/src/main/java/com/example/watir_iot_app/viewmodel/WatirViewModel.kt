@@ -3,6 +3,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.State
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.watir_iot_app.data.model.MoveRequest
 import com.example.watir_iot_app.data.model.TelemetryHistoryResponse
 import com.example.watir_iot_app.network.APIClients
 import com.example.watir_iot_app.network.WatirAPI
@@ -17,6 +18,9 @@ class WatirViewModel : ViewModel(){
 
     private val _isConnected = mutableStateOf(false)
     val isConnected: State<Boolean> = _isConnected
+
+    private val throttleIntervalMs = 200L
+    private val lastSendTimestamps = mutableMapOf<String, Long>()
 
     fun connectToServer(ipAddress: String) {
         viewModelScope.launch {
@@ -47,6 +51,23 @@ class WatirViewModel : ViewModel(){
 
                 } catch (e: Exception) {
                     println("Failed to fetch telemetry history: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun sendMove(axis: String, value: Int) {
+        val now = System.currentTimeMillis()
+        val lastSent = lastSendTimestamps[axis] ?: 0L
+        if (now - lastSent < throttleIntervalMs) return
+        lastSendTimestamps[axis] = now
+
+        watirAPI?.let { api ->
+            viewModelScope.launch {
+                try {
+                    api.sendMove(MoveRequest(axis = axis, value = value))
+                } catch (e: Exception) {
+                    println("Failed to send move command: ${e.message}")
                 }
             }
         }
