@@ -5,6 +5,11 @@ data class TelemetryHistoryResponse(
     val data: List<TelemetryDbRow> = emptyList()
 )
 
+data class MoveRequest(
+    val axis: String,
+    val value: Int
+)
+
 data class TelemetryDbRow(
     val id: Int,
     val device_id: String,
