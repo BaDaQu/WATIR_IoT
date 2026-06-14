@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -18,9 +19,10 @@ import com.example.watir_iot_app.feature.dashboard.DashboardScreen
 import com.example.watir_iot_app.feature.joystick.JoystickScreen
 import com.example.watir_iot_app.feature.settings.SettingsScreen
 import com.example.watir_iot_app.feature.splash.SplashScreen
+import com.example.watir_iot_app.viewmodel.WatirViewModel
 
 @Composable
-fun AppNavigation(){
+fun AppNavigation(watirViewModel: WatirViewModel){
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -71,7 +73,7 @@ fun AppNavigation(){
             composable(Screen.Charts.route) { ChartsScreen() }
             composable(Screen.Dashboard.route) { DashboardScreen() }
             composable(Screen.Joystick.route) { JoystickScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Settings.route) { SettingsScreen(watirViewModel) }
             composable(Screen.Splash.route) { SplashScreen(navController) }
         }
     }
