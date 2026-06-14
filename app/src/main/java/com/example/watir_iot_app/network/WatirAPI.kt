@@ -1,10 +1,17 @@
 package com.example.watir_iot_app.network
 
 import com.example.watir_iot_app.data.model.MoveRequest
+import com.example.watir_iot_app.data.model.PlantProfileApplyResponse
+import com.example.watir_iot_app.data.model.PlantProfileListResponse
 import com.example.watir_iot_app.data.model.TelemetryHistoryResponse
+import com.example.watir_iot_app.data.model.PlantProfileRequest
+import com.example.watir_iot_app.data.model.PlantProfileResponse
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
 
 interface WatirAPI {
     @GET("api/telemetry")
@@ -12,4 +19,19 @@ interface WatirAPI {
 
     @POST("api/move")
     suspend fun sendMove(@Body request: MoveRequest)
+
+    @GET("api/plants")
+    suspend fun getPlants(): PlantProfileListResponse
+
+    @POST("api/plants")
+    suspend fun createPlantProfile(@Body request: PlantProfileRequest): PlantProfileResponse
+
+    @PUT("api/plants/{id}")
+    suspend fun updatePlantProfile(@Path("id") id: Int, @Body request: PlantProfileRequest): PlantProfileResponse
+
+    @DELETE("api/plants/{id}")
+    suspend fun deletePlantProfile(@Path("id") id: Int): PlantProfileResponse
+
+    @POST("api/plants/{id}/apply")
+    suspend fun applyPlantProfile(@Path("id") id: Int): PlantProfileApplyResponse
 }
