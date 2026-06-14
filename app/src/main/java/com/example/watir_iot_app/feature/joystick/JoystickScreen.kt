@@ -13,14 +13,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.watir_iot_app.feature.joystick.components.VirtualJoystick
+import com.example.watir_iot_app.viewmodel.WatirViewModel
 
 @Composable
-fun JoystickScreen() {
+fun JoystickScreen(watirViewModel: WatirViewModel) {
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally){
-        VirtualJoystick()
+        VirtualJoystick(
+            onMove = { panValue, tiltValue ->
+                watirViewModel.sendMove("X", panValue)
+                watirViewModel.sendMove("Y", tiltValue)
+            }
+        )
         Spacer(modifier = Modifier.height(48.dp))
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp)

@@ -72,7 +72,7 @@ fun AppNavigation(watirViewModel: WatirViewModel){
         {
             composable(Screen.Charts.route) { ChartsScreen() }
             composable(Screen.Dashboard.route) { DashboardScreen() }
-            composable(Screen.Joystick.route) { JoystickScreen() }
+            composable(Screen.Joystick.route) { JoystickScreen(watirViewModel) }
             composable(Screen.Settings.route) { SettingsScreen(watirViewModel) }
             composable(Screen.Splash.route) { SplashScreen(navController) }
         }
