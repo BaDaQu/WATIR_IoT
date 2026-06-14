@@ -7,6 +7,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Słownik przechowujący ostatnio znane IP urządzeń w sieci lokalnej (Auto-discovery)
+const activeDevices = {};
+
 // ==========================================
 // KONFIGURACJA RETENCJI — Issue #22
 // Maksymalna liczba rekordów na urządzenie
@@ -48,15 +51,15 @@ async function enforceRetention(device_id) {
       console.log(`🧹 Retencja [${device_id}]: usunięto ${result.rowCount} starych rekordów`);
     }
   } catch (err) {
-    // Retencja nie jest krytyczna — logujemy błąd, ale nie przerywamy działania
     console.error('⚠️ Błąd retencji:', err.message);
   }
 }
 
 // ==========================================
 // ENDPOINT 1: POST /api/telemetry (Dla ESP8266)
-// Odbiera JSON z ESP i zapisuje do bazy,
-// następnie wymusza retencję dla tego urządzenia
+// Odbiera JSON z ESP, zapisuje do bazy,
+// automatycznie zapamiętuje IP urządzenia,
+// a następnie wymusza retencję w tle.
 // ==========================================
 app.post('/api/telemetry', async (req, res) => {
   try {
@@ -68,6 +71,15 @@ app.post('/api/telemetry', async (req, res) => {
         status: 'error',
         message: 'Brakujące pola: wymagane device_id, sensors, status, servos'
       });
+    }
+
+    // Automatyczne wykrywanie i zapisywanie adresu IP ESP8266
+    const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const clientIp = rawIp.includes('::ffff:') ? rawIp.split('::ffff:')[1] : rawIp;
+
+    if (data.device_id) {
+      activeDevices[data.device_id] = clientIp;
+      console.log(`📡 Urządzenie ${data.device_id} zameldowało się z IP: ${clientIp}`);
     }
 
     const query = `
@@ -109,16 +121,7 @@ app.post('/api/telemetry', async (req, res) => {
 
 // ==========================================
 // ENDPOINT 2: GET /api/telemetry (Dla Aplikacji)
-// Issue #22: dodano filtrowanie po device_id i limit
-//
-// Query params:
-//   device_id  — opcjonalne, filtruje po urządzeniu
-//   limit      — opcjonalne, domyślnie 50, max 500
-//
-// Przykłady:
-//   GET /api/telemetry
-//   GET /api/telemetry?device_id=WATIR_01
-//   GET /api/telemetry?device_id=WATIR_01&limit=100
+// Query params: device_id, limit
 // ==========================================
 app.get('/api/telemetry', async (req, res) => {
   try {
@@ -154,8 +157,7 @@ app.get('/api/telemetry', async (req, res) => {
 
 // ==========================================
 // ENDPOINT 3: GET /api/telemetry/stats (Nowy)
-// Zwraca statystyki retencji — pomocne do debugowania
-// i monitorowania rozmiaru bazy
+// Zwraca statystyki retencji
 // ==========================================
 app.get('/api/telemetry/stats', async (req, res) => {
   try {
@@ -187,10 +189,6 @@ app.get('/api/telemetry/stats', async (req, res) => {
 // ==========================================
 // ENDPOINT 4: DELETE /api/telemetry (Nowy)
 // Ręczne wymuszenie retencji lub pełne czyszczenie
-//
-// Query params:
-//   device_id  — wymagane
-//   mode       — 'retain' (zostaw ostatnie N) lub 'purge' (wyczyść wszystko)
 // ==========================================
 app.delete('/api/telemetry', async (req, res) => {
   try {
@@ -241,41 +239,83 @@ app.delete('/api/telemetry', async (req, res) => {
 });
 
 // ==========================================
-// PROFIL ROŚLIN — pełny CRUD
-// Podstawa pod issue #25 (klient API w apce)
-// i issue #28 (ekran zarządzania roślinami)
-//
-// GET    /api/plants          — lista wszystkich profili
-// GET    /api/plants/:id      — jeden profil po ID
-// POST   /api/plants          — nowy profil
-// PUT    /api/plants/:id      — nadpisz cały profil
-// PATCH  /api/plants/:id      — zmień wybrane pola
-// DELETE /api/plants/:id      — usuń profil
-// POST   /api/plants/:id/apply — wyślij profil do ESP32
+// ENDPOINT 5: POST /api/move (Dla Aplikacji)
+// Odbiera ruch z joysticka z apki i przekazuje do ESP8266
+// ==========================================
+app.post('/api/move', async (req, res) => {
+  try {
+    const { device_id = 'WATIR_01', axis, value } = req.body;
+
+    if (!axis || value === undefined) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Brakujące parametry: wymagane axis ("X" lub "Y") oraz value'
+      });
+    }
+
+    // Pobieramy ostatnio zapamiętany adres IP urządzenia
+    const espIp = activeDevices[device_id];
+
+    if (!espIp) {
+      return res.status(404).json({
+        status: 'error',
+        message: `Urządzenie o ID ${device_id} nie wysłało jeszcze telemetrii (IP nieznane).`
+      });
+    }
+
+    console.log(`➡️ Przekierowanie komendy do ${device_id} na adres: http://${espIp}/api/move`);
+
+    // Przesyłamy żądanie bezpośrednio do ESP8266
+    const response = await fetch(`http://${espIp}/api/move`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ axis, value }),
+    });
+
+    if (response.ok) {
+      const espResponse = await response.json();
+      return res.status(200).json({
+        status: 'success',
+        message: 'Komenda przekazana pomyślnie do ESP8266',
+        esp_response: espResponse
+      });
+    } else {
+      return res.status(response.status).json({
+        status: 'error',
+        message: 'ESP odrzuciło żądanie',
+        esp_status: response.status
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Błąd przesyłania do ESP:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: 'Błąd komunikacji z ESP. Upewnij się, że urządzenie jest uruchomione i podłączone do tej samej sieci.'
+    });
+  }
+});
+
+// ==========================================
+// PROFIL ROŚLIN — pełny CRUD (Wsparcie dla Issue #28)
 // ==========================================
 
-// Walidacja pól profilu — używana przy POST i PUT
 function validatePlantProfile(data, requireAll = true) {
   const errors = [];
-
   if (requireAll && !data.name) errors.push('name jest wymagany');
   if (requireAll && data.moisture_threshold === undefined) errors.push('moisture_threshold jest wymagany');
 
-  if (data.name !== undefined && typeof data.name !== 'string')
-    errors.push('name musi być tekstem');
-  if (data.moisture_threshold !== undefined &&
-    (typeof data.moisture_threshold !== 'number' || data.moisture_threshold < 0 || data.moisture_threshold > 100))
+  if (data.name !== undefined && typeof data.name !== 'string') errors.push('name musi być tekstem');
+  if (data.moisture_threshold !== undefined && (typeof data.moisture_threshold !== 'number' || data.moisture_threshold < 0 || data.moisture_threshold > 100))
     errors.push('moisture_threshold musi być liczbą 0–100');
-  if (data.auto_watering !== undefined && typeof data.auto_watering !== 'boolean')
-    errors.push('auto_watering musi być true/false');
-  if (data.check_interval_ms !== undefined &&
-    (typeof data.check_interval_ms !== 'number' || data.check_interval_ms < 1000))
+  if (data.auto_watering !== undefined && typeof data.auto_watering !== 'boolean') errors.push('auto_watering musi być true/false');
+  if (data.check_interval_ms !== undefined && (typeof data.check_interval_ms !== 'number' || data.check_interval_ms < 1000))
     errors.push('check_interval_ms musi być liczbą >= 1000');
-
   return errors;
 }
 
-// GET /api/plants — lista wszystkich profili
 app.get('/api/plants', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM plant_profiles ORDER BY id');
@@ -286,19 +326,11 @@ app.get('/api/plants', async (req, res) => {
   }
 });
 
-// GET /api/plants/:id — jeden profil po ID
 app.get('/api/plants/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM plant_profiles WHERE id = $1',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
-    }
-
+    const result = await pool.query('SELECT * FROM plant_profiles WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
     res.status(200).json({ status: 'success', data: result.rows[0] });
   } catch (error) {
     console.error(error);
@@ -306,174 +338,88 @@ app.get('/api/plants/:id', async (req, res) => {
   }
 });
 
-// POST /api/plants — utwórz nowy profil
 app.post('/api/plants', async (req, res) => {
   try {
     const data = req.body;
-
     const errors = validatePlantProfile(data, true);
-    if (errors.length > 0) {
-      return res.status(400).json({ status: 'error', message: errors.join(', ') });
-    }
+    if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
     const result = await pool.query(
       `INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [
-        data.name,
-        data.moisture_threshold,
-        data.auto_watering ?? true,
-        data.check_interval_ms ?? 10000
-      ]
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [data.name, data.moisture_threshold, data.auto_watering ?? true, data.check_interval_ms ?? 10000]
     );
-
-    res.status(201).json({
-      status: 'success',
-      message: `Profil "${data.name}" został utworzony.`,
-      data: result.rows[0]
-    });
+    res.status(201).json({ status: 'success', message: `Profil "${data.name}" został utworzony.`, data: result.rows[0] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: 'error', message: 'Błąd tworzenia profilu.' });
   }
 });
 
-// PUT /api/plants/:id — nadpisz cały profil
 app.put('/api/plants/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const data = req.body;
-
     const errors = validatePlantProfile(data, true);
-    if (errors.length > 0) {
-      return res.status(400).json({ status: 'error', message: errors.join(', ') });
-    }
+    if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
     const result = await pool.query(
-      `UPDATE plant_profiles
-       SET name = $1,
-           moisture_threshold = $2,
-           auto_watering = $3,
-           check_interval_ms = $4
-       WHERE id = $5
-       RETURNING *`,
-      [
-        data.name,
-        data.moisture_threshold,
-        data.auto_watering ?? true,
-        data.check_interval_ms ?? 10000,
-        id
-      ]
+      `UPDATE plant_profiles SET name = $1, moisture_threshold = $2, auto_watering = $3, check_interval_ms = $4 WHERE id = $5 RETURNING *`,
+      [data.name, data.moisture_threshold, data.auto_watering ?? true, data.check_interval_ms ?? 10000, id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
-    }
-
-    res.status(200).json({
-      status: 'success',
-      message: `Profil ID ${id} został zaktualizowany.`,
-      data: result.rows[0]
-    });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
+    res.status(200).json({ status: 'success', message: `Profil ID ${id} został zaktualizowany.`, data: result.rows[0] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: 'error', message: 'Błąd aktualizacji profilu.' });
   }
 });
 
-// PATCH /api/plants/:id — zmień tylko wybrane pola
 app.patch('/api/plants/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const data = req.body;
-
-    if (Object.keys(data).length === 0) {
-      return res.status(400).json({ status: 'error', message: 'Brak pól do aktualizacji.' });
-    }
+    if (Object.keys(data).length === 0) return res.status(400).json({ status: 'error', message: 'Brak pól do aktualizacji.' });
 
     const errors = validatePlantProfile(data, false);
-    if (errors.length > 0) {
-      return res.status(400).json({ status: 'error', message: errors.join(', ') });
-    }
+    if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
-    // Budujemy dynamicznie tylko te kolumny które przyszły w body
     const allowed = ['name', 'moisture_threshold', 'auto_watering', 'check_interval_ms'];
     const fields = Object.keys(data).filter(k => allowed.includes(k));
-
-    if (fields.length === 0) {
-      return res.status(400).json({ status: 'error', message: 'Żadne z podanych pól nie jest dozwolone.' });
-    }
+    if (fields.length === 0) return res.status(400).json({ status: 'error', message: 'Żadne z podanych pól nie jest dozwolone.' });
 
     const setClauses = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
     const values = fields.map(f => data[f]);
     values.push(id);
 
-    const result = await pool.query(
-      `UPDATE plant_profiles SET ${setClauses} WHERE id = $${values.length} RETURNING *`,
-      values
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
-    }
-
-    res.status(200).json({
-      status: 'success',
-      message: `Profil ID ${id} został częściowo zaktualizowany.`,
-      data: result.rows[0]
-    });
+    const result = await pool.query(`UPDATE plant_profiles SET ${setClauses} WHERE id = $${values.length} RETURNING *`, values);
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
+    res.status(200).json({ status: 'success', message: `Profil ID ${id} został częściowo zaktualizowany.`, data: result.rows[0] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: 'error', message: 'Błąd częściowej aktualizacji profilu.' });
   }
 });
 
-// DELETE /api/plants/:id — usuń profil
 app.delete('/api/plants/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
-    const result = await pool.query(
-      'DELETE FROM plant_profiles WHERE id = $1 RETURNING *',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
-    }
-
-    res.status(200).json({
-      status: 'success',
-      message: `Profil "${result.rows[0].name}" został usunięty.`,
-      deleted: result.rows[0]
-    });
+    const result = await pool.query('DELETE FROM plant_profiles WHERE id = $1 RETURNING *', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
+    res.status(200).json({ status: 'success', message: `Profil "${result.rows[0].name}" został usunięty.`, deleted: result.rows[0] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: 'error', message: 'Błąd usuwania profilu.' });
   }
 });
 
-// POST /api/plants/:id/apply — wyślij profil do ESP32
-// Pobiera profil z bazy i odsyła go w formacie config
-// który ESP32 rozumie (zgodny z API_PROTOCOL.md sekcja 3)
-// W przyszłości tutaj trafi też faktyczne wysłanie do ESP przez HTTP
 app.post('/api/plants/:id/apply', async (req, res) => {
   try {
     const { id } = req.params;
-
-    const result = await pool.query(
-      'SELECT * FROM plant_profiles WHERE id = $1',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
-    }
+    const result = await pool.query('SELECT * FROM plant_profiles WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
 
     const profile = result.rows[0];
-
-    // Format zgodny z API_PROTOCOL.md sekcja 3 — Konfiguracja i Profile Roślin
     const espConfig = {
       config: {
         moisture_threshold: profile.moisture_threshold,
@@ -483,16 +429,7 @@ app.post('/api/plants/:id/apply', async (req, res) => {
     };
 
     console.log(`📡 Aplikowanie profilu "${profile.name}" (ID: ${id}) do ESP32:`, espConfig);
-
-    // TODO issue #27/#28: tu trafi faktyczne wysłanie HTTP do ESP32
-    // np. await fetch(`http://${ESP_IP}/config`, { method: 'POST', body: JSON.stringify(espConfig) })
-
-    res.status(200).json({
-      status: 'success',
-      message: `Profil "${profile.name}" został wysłany do ESP32.`,
-      applied_profile: profile,
-      esp_config: espConfig
-    });
+    res.status(200).json({ status: 'success', message: `Profil "${profile.name}" został wysłany.`, applied_profile: profile, esp_config: espConfig });
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: 'error', message: 'Błąd aplikowania profilu.' });
