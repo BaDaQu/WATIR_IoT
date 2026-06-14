@@ -245,7 +245,7 @@ app.delete('/api/telemetry', async (req, res) => {
 app.post('/api/move', async (req, res) => {
   try {
     const { device_id = 'WATIR_01', axis, value } = req.body;
-
+    const ESP_IP = 'http://10.84.74.11';
     if (!axis || value === undefined) {
       return res.status(400).json({
         status: 'error',
@@ -266,7 +266,7 @@ app.post('/api/move', async (req, res) => {
     console.log(`➡️ Przekierowanie komendy do ${device_id} na adres: http://${espIp}/api/move`);
 
     // Przesyłamy żądanie bezpośrednio do ESP8266
-    const response = await fetch(`http://${espIp}/api/move`, {
+    const response = await fetch(`${ESP_IP}/api/move`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
