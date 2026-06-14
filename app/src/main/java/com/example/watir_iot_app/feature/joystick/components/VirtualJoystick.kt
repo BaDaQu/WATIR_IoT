@@ -15,32 +15,48 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
-@Preview
-@Composable fun VirtualJoystick(){
+
+@Composable
+fun VirtualJoystick(
+    onMove: (panValue: Int, tiltValue: Int) -> Unit = { _, _ -> }
+) {
     var thumbOffset by remember { mutableStateOf(Offset.Zero) }
+    val maxRadius = 150f
+
     Canvas(modifier =
         Modifier
             .size(300.dp)
             .pointerInput(Unit){
                 detectDragGestures(
-                    onDragEnd = { thumbOffset = Offset.Zero}
+                    onDragEnd = {
+                        thumbOffset = Offset.Zero
+                    }
                 ){
                     change, dragAmount->
                     change.consume()
                     val newOffset = thumbOffset + dragAmount
                     val distance = newOffset.getDistance()
-                    val maxRadius = 150f
                     if(distance <= maxRadius){
                         thumbOffset = newOffset
                     }
                     else{
                         thumbOffset = newOffset / distance * maxRadius
                     }
+
+                    // Przeliczenie offsetu pikseli na kąty 0-180
+                    // thumbOffset.x: -maxRadius..+maxRadius → 0..180 (pan)
+                    // thumbOffset.y: -maxRadius..+maxRadius → 180..0 (tilt, odwrócony – góra = wyższy kąt)
+                    val panValue = ((thumbOffset.x / maxRadius) * 90f + 90f)
+                        .toInt().coerceIn(0, 180)
+                    val tiltValue = ((-thumbOffset.y / maxRadius) * 90f + 90f)
+                        .toInt().coerceIn(0, 180)
+
+                    onMove(panValue, tiltValue)
                 }
             }) {
         drawCircle(
             color = Color.LightGray,
-            radius = 150f
+            radius = maxRadius
         )
         drawCircle(
             color = Color.Blue,
@@ -48,4 +64,10 @@ import androidx.compose.ui.unit.dp
             center = center + thumbOffset
         )
     }
+}
+
+@Preview
+@Composable
+private fun VirtualJoystickPreview() {
+    VirtualJoystick()
 }

@@ -5,6 +5,11 @@ data class TelemetryHistoryResponse(
     val data: List<TelemetryDbRow> = emptyList()
 )
 
+data class MoveRequest(
+    val axis: String,
+    val value: Int
+)
+
 data class TelemetryDbRow(
     val id: Int,
     val device_id: String,
@@ -17,4 +22,37 @@ data class TelemetryDbRow(
     val pump_active: Boolean,
     val pan: Int,
     val tilt: Int
+)
+
+data class PlantProfile(
+    val id: Int,
+    val name: String,
+    val moisture_threshold: Int,
+    val auto_watering: Boolean,
+    val check_interval_ms: Int
+)
+
+data class PlantProfileListResponse(
+    val status: String,
+    val data: List<PlantProfile>
+)
+
+data class PlantProfileApplyResponse(
+    val status: String,
+    val message: String,
+    val applied_profile: PlantProfile? = null
+)
+
+data class PlantProfileRequest(
+    val name: String,
+    val moisture_threshold: Int,
+    val auto_watering: Boolean,
+    val check_interval_ms: Int
+)
+
+data class PlantProfileResponse(
+    val status: String,
+    val message: String? = null,
+    val data: PlantProfile? = null,
+    val deleted: PlantProfile? = null
 )
