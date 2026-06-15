@@ -8,6 +8,7 @@ import com.example.watir_iot_app.data.model.TelemetryHistoryResponse
 import com.example.watir_iot_app.network.APIClients
 import com.example.watir_iot_app.network.WatirAPI
 import com.example.watir_iot_app.data.model.PlantProfile
+import com.example.watir_iot_app.data.model.TelemetryDbRow
 import kotlinx.coroutines.launch
 
 class WatirViewModel : ViewModel(){
@@ -30,13 +31,10 @@ class WatirViewModel : ViewModel(){
         viewModelScope.launch {
             try {
                 val api = APIClients.createClientAPI(ipAddress)
-
                 val response = api.getTelemetryHistory()
-
                 watirAPI = api
                 _telemetryHistory.value = response
                 _isConnected.value = true
-
                 fetchPlants()
 
             } catch (e: Exception) {

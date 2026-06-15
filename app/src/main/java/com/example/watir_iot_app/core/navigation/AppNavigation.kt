@@ -34,14 +34,12 @@ fun AppNavigation(watirViewModel: WatirViewModel){
         Screen.Settings
     )
 
-// Pasek pokazujemy tylko, gdy nie jesteśmy na ekranie Splash
     val showBottomBar = currentRoute != Screen.Splash.route
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar {
                     bottomBarItems.forEach { screen ->
-                        // Dla każdego elementu na liście tworzymy ikonkę w pasku
                         NavigationBarItem(
                             icon = {
                                 Icon(
@@ -53,7 +51,6 @@ fun AppNavigation(watirViewModel: WatirViewModel){
                             selected = currentRoute == screen.route,
                             onClick = {
                                 navController.navigate(screen.route) {
-                                    // Ten kod zapobiega otwieraniu ekranu 100 razy, jak ktoś klika w ikonę jak szalony
                                     popUpTo(navController.graph.startDestinationId) { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
@@ -70,7 +67,7 @@ fun AppNavigation(watirViewModel: WatirViewModel){
             modifier = Modifier.padding(innerPadding),
             startDestination = Screen.Splash.route)
         {
-            composable(Screen.Charts.route) { ChartsScreen() }
+            composable(Screen.Charts.route) { ChartsScreen(watirViewModel) }
             composable(Screen.Dashboard.route) { DashboardScreen() }
             composable(Screen.Joystick.route) { JoystickScreen(watirViewModel) }
             composable(Screen.Settings.route) { SettingsScreen(watirViewModel) }
