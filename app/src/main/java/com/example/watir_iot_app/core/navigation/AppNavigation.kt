@@ -68,7 +68,7 @@ fun AppNavigation(watirViewModel: WatirViewModel){
             startDestination = Screen.Splash.route)
         {
             composable(Screen.Charts.route) { ChartsScreen(watirViewModel) }
-            composable(Screen.Dashboard.route) { DashboardScreen() }
+            composable(Screen.Dashboard.route) { DashboardScreen(watirViewModel) }
             composable(Screen.Joystick.route) { JoystickScreen(watirViewModel) }
             composable(Screen.Settings.route) { SettingsScreen(watirViewModel) }
             composable(Screen.Splash.route) { SplashScreen(navController) }
