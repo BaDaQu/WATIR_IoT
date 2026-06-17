@@ -53,10 +53,14 @@ dkms.conf
 
 # debug information files
 *.dwo
+
 # Android & Android Studio
 .gradle/
 .idea/
 build/
 local.properties
 
-
+# POPRAWKA #2: Pliki .env z hasłami — nigdy nie commitować do repo!
+# Skopiuj backend/.env.example i uzupełnij ręcznie.
+.env
+backend/.env

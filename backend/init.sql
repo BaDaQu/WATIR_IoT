@@ -20,10 +20,11 @@ CREATE TABLE IF NOT EXISTS telemetry_logs (
 );
 
 -- Tabela 2: Profile Roślin (Konfiguracja dla ESP8266)
+-- UWAGA: moisture_threshold przechowywany w PROCENTACH (0–100)
 CREATE TABLE IF NOT EXISTS plant_profiles (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
-    moisture_threshold INT NOT NULL,
+    moisture_threshold INT NOT NULL CHECK (moisture_threshold >= 0 AND moisture_threshold <= 100),
     auto_watering BOOLEAN DEFAULT true,
     check_interval_ms INT DEFAULT 10000
 );
@@ -51,9 +52,10 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_device_timestamp
 -- DANE TESTOWE
 -- ==========================================
 
--- Wrzucamy testowy profil rośliny (jeśli nie istnieje)
+-- POPRAWKA #2: moisture_threshold = 20 (procenty), było 200 (wartość ADC)
+-- Constraint CHECK na tabeli odrzuciłby teraz wartość 200
 INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms)
-SELECT 'Kaktus_Testowy', 200, true, 10000
+SELECT 'Kaktus_Testowy', 20, true, 10000
 WHERE NOT EXISTS (
     SELECT 1 FROM plant_profiles WHERE name = 'Kaktus_Testowy'
 );

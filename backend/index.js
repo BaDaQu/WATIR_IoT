@@ -25,9 +25,14 @@ const pool = new Pool({
   database: process.env.DB_NAME,
 });
 
+// POPRAWKA #5: Crashowanie przy braku połączenia z bazą,
+// żeby Docker Compose mógł zrestartować kontener
 pool.connect()
   .then(() => console.log('✅ Połączono z bazą PostgreSQL!'))
-  .catch(err => console.error('❌ Błąd połączenia z bazą:', err.stack));
+  .catch(err => {
+    console.error('❌ Krytyczny błąd połączenia z bazą:', err.stack);
+    process.exit(1);
+  });
 
 // ==========================================
 // FUNKCJA RETENCJI — Issue #22
@@ -156,7 +161,7 @@ app.get('/api/telemetry', async (req, res) => {
 });
 
 // ==========================================
-// ENDPOINT 3: GET /api/telemetry/stats (Nowy)
+// ENDPOINT 3: GET /api/telemetry/stats
 // Zwraca statystyki retencji
 // ==========================================
 app.get('/api/telemetry/stats', async (req, res) => {
@@ -187,7 +192,7 @@ app.get('/api/telemetry/stats', async (req, res) => {
 });
 
 // ==========================================
-// ENDPOINT 4: DELETE /api/telemetry (Nowy)
+// ENDPOINT 4: DELETE /api/telemetry
 // Ręczne wymuszenie retencji lub pełne czyszczenie
 // ==========================================
 app.delete('/api/telemetry', async (req, res) => {
@@ -240,12 +245,13 @@ app.delete('/api/telemetry', async (req, res) => {
 
 // ==========================================
 // ENDPOINT 5: POST /api/move (Dla Aplikacji)
-// Odbiera ruch z joysticka z apki i przekazuje do ESP8266
+// Odbiera ruch z joysticka i przekazuje do ESP8266
 // ==========================================
 app.post('/api/move', async (req, res) => {
   try {
+    // POPRAWKA #4: device_id pobierany z body zamiast zahardkodowanego 'WATIR_01'
     const { device_id = 'WATIR_01', axis, value } = req.body;
-    const ESP_IP = 'http://10.84.74.11';
+
     if (!axis || value === undefined) {
       return res.status(400).json({
         status: 'error',
@@ -253,7 +259,7 @@ app.post('/api/move', async (req, res) => {
       });
     }
 
-    // Pobieramy ostatnio zapamiętany adres IP urządzenia
+    // POPRAWKA #1: Używamy espIp z activeDevices zamiast zahardkodowanego adresu
     const espIp = activeDevices[device_id];
 
     if (!espIp) {
@@ -265,8 +271,7 @@ app.post('/api/move', async (req, res) => {
 
     console.log(`➡️ Przekierowanie komendy do ${device_id} na adres: http://${espIp}/api/move`);
 
-    // Przesyłamy żądanie bezpośrednio do ESP8266
-    const response = await fetch(`${ESP_IP}/api/move`, {
+    const response = await fetch(`http://${espIp}/api/move`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -299,20 +304,26 @@ app.post('/api/move', async (req, res) => {
 });
 
 // ==========================================
-// PROFIL ROŚLIN — pełny CRUD (Wsparcie dla Issue #28)
+// PROFIL ROŚLIN — pełny CRUD
 // ==========================================
 
+// POPRAWKA #2: moisture_threshold w procentach (0-100), poprawiona walidacja
 function validatePlantProfile(data, requireAll = true) {
   const errors = [];
   if (requireAll && !data.name) errors.push('name jest wymagany');
   if (requireAll && data.moisture_threshold === undefined) errors.push('moisture_threshold jest wymagany');
 
   if (data.name !== undefined && typeof data.name !== 'string') errors.push('name musi być tekstem');
-  if (data.moisture_threshold !== undefined && (typeof data.moisture_threshold !== 'number' || data.moisture_threshold < 0 || data.moisture_threshold > 100))
-    errors.push('moisture_threshold musi być liczbą 0–100');
+  if (data.moisture_threshold !== undefined && (
+    typeof data.moisture_threshold !== 'number' ||
+    data.moisture_threshold < 0 ||
+    data.moisture_threshold > 100
+  )) errors.push('moisture_threshold musi być liczbą 0–100 (procenty)');
   if (data.auto_watering !== undefined && typeof data.auto_watering !== 'boolean') errors.push('auto_watering musi być true/false');
-  if (data.check_interval_ms !== undefined && (typeof data.check_interval_ms !== 'number' || data.check_interval_ms < 1000))
-    errors.push('check_interval_ms musi być liczbą >= 1000');
+  if (data.check_interval_ms !== undefined && (
+    typeof data.check_interval_ms !== 'number' ||
+    data.check_interval_ms < 1000
+  )) errors.push('check_interval_ms musi być liczbą >= 1000');
   return errors;
 }
 
@@ -413,9 +424,13 @@ app.delete('/api/plants/:id', async (req, res) => {
   }
 });
 
+// POPRAWKA #3: /api/plants/:id/apply faktycznie wysyła config do ESP
 app.post('/api/plants/:id/apply', async (req, res) => {
   try {
     const { id } = req.params;
+    // device_id można przekazać w body, domyślnie 'WATIR_01'
+    const { device_id = 'WATIR_01' } = req.body || {};
+
     const result = await pool.query('SELECT * FROM plant_profiles WHERE id = $1', [id]);
     if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
 
@@ -428,12 +443,58 @@ app.post('/api/plants/:id/apply', async (req, res) => {
       }
     };
 
-    console.log(`📡 Aplikowanie profilu "${profile.name}" (ID: ${id}) do ESP32:`, espConfig);
-    res.status(200).json({ status: 'success', message: `Profil "${profile.name}" został wysłany.`, applied_profile: profile, esp_config: espConfig });
+    const espIp = activeDevices[device_id];
+
+    if (!espIp) {
+      // Urządzenie jeszcze nie zameldowało się — zwróć ostrzeżenie, ale nie blokuj
+      console.warn(`⚠️ Urządzenie ${device_id} nieznane (brak telemetrii). Profil zapisany tylko w odpowiedzi.`);
+      return res.status(200).json({
+        status: 'success',
+        message: `Profil "${profile.name}" gotowy, ale urządzenie ${device_id} nie jest dostępne (brak telemetrii).`,
+        applied_profile: profile,
+        esp_config: espConfig,
+        esp_sent: false
+      });
+    }
+
+    console.log(`📡 Aplikowanie profilu "${profile.name}" (ID: ${id}) do ${device_id} na http://${espIp}/api/config`);
+
+    const espResponse = await fetch(`http://${espIp}/api/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(espConfig),
+    });
+
+    if (espResponse.ok) {
+      return res.status(200).json({
+        status: 'success',
+        message: `Profil "${profile.name}" został wysłany do urządzenia.`,
+        applied_profile: profile,
+        esp_config: espConfig,
+        esp_sent: true
+      });
+    } else {
+      return res.status(502).json({
+        status: 'error',
+        message: `Profil znaleziony, ale ESP odrzuciło konfigurację (HTTP ${espResponse.status}).`,
+        applied_profile: profile,
+        esp_sent: false
+      });
+    }
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: 'error', message: 'Błąd aplikowania profilu.' });
   }
+});
+
+// ==========================================
+// POPRAWKA #6: Globalny error handler Express
+// Łapie wszystkie nieobsłużone błędy z middleware
+// ==========================================
+app.use((err, req, res, next) => {
+  console.error('Nieobsłużony błąd:', err);
+  res.status(500).json({ status: 'error', message: 'Wewnętrzny błąd serwera.' });
 });
 
 // Start serwera
