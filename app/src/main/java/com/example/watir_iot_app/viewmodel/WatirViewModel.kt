@@ -8,6 +8,7 @@ import com.example.watir_iot_app.data.model.TelemetryHistoryResponse
 import com.example.watir_iot_app.network.APIClients
 import com.example.watir_iot_app.network.WatirAPI
 import com.example.watir_iot_app.data.model.PlantProfile
+import com.example.watir_iot_app.data.model.PlantProfileRequest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -127,7 +128,11 @@ class WatirViewModel : ViewModel(){
         }
     }
 
-    fun applyPlantProfile(id: Int, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+    fun applyPlantProfile(
+        id: Int,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
@@ -144,11 +149,26 @@ class WatirViewModel : ViewModel(){
         } ?: onError("Not connected to server")
     }
 
-    fun createPlantProfile(name: String, moistureThreshold: Int, autoWatering: Boolean, checkIntervalMs: Int, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+    fun createPlantProfile(
+        name: String,
+        moistureThreshold: Int,
+        autoWatering: Boolean,
+        checkIntervalMs: Int,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
-                    val req = com.example.watir_iot_app.data.model.PlantProfileRequest(name, moistureThreshold, autoWatering, checkIntervalMs)
+                    val req =
+                        PlantProfileRequest(
+                            name,
+                            moistureThreshold,
+                            autoWatering,
+                            checkIntervalMs,
+                            90,
+                            90
+                        )
                     val response = api.createPlantProfile(req)
                     if (response.status == "success") {
                         onSuccess(response.message ?: "Profile created")
@@ -163,11 +183,29 @@ class WatirViewModel : ViewModel(){
         } ?: onError("Not connected to server")
     }
 
-    fun updatePlantProfile(id: Int, name: String, moistureThreshold: Int, autoWatering: Boolean, checkIntervalMs: Int, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+    fun updatePlantProfile(
+        id: Int, name: String,
+        moistureThreshold: Int,
+        autoWatering: Boolean,
+        checkIntervalMs: Int,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val existing = _plantProfiles.value.find { it.id == id }
+        val panToSave = existing?.pan ?: currentX
+        val tiltToSave = existing?.tilt ?: currentY
+
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
-                    val req = com.example.watir_iot_app.data.model.PlantProfileRequest(name, moistureThreshold, autoWatering, checkIntervalMs)
+                    val req = PlantProfileRequest(
+                        name,
+                        moistureThreshold,
+                        autoWatering,
+                        checkIntervalMs,
+                        panToSave,
+                        tiltToSave
+                    )
                     val response = api.updatePlantProfile(id, req)
                     if (response.status == "success") {
                         onSuccess(response.message ?: "Profile updated")
@@ -182,7 +220,11 @@ class WatirViewModel : ViewModel(){
         } ?: onError("Not connected to server")
     }
 
-    fun deletePlantProfile(id: Int, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+    fun deletePlantProfile(
+        id: Int,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
@@ -195,6 +237,43 @@ class WatirViewModel : ViewModel(){
                     }
                 } catch (e: Exception) {
                     onError(e.message ?: "Unknown error")
+                }
+            }
+        } ?: onError("Not connected to server")
+    }
+
+    fun saveCurrentPositionForPlant(
+        id: Int,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val existing = _plantProfiles.value.find { it.id == id }
+
+        if (existing == null) {
+            onError("Profile with ID $id not found")
+            return
+        }
+
+        watirAPI?.let { api ->
+            viewModelScope.launch {
+                try {
+                    val req = PlantProfileRequest(
+                        name = existing.name,
+                        moisture_threshold = existing.moisture_threshold,
+                        auto_watering = existing.auto_watering,
+                        check_interval_ms = existing.check_interval_ms,
+                        pan = currentX,
+                        tilt = currentY
+                    )
+                    val response = api.updatePlantProfile(id, req)
+                    if (response.status == "success") {
+                        fetchPlants()
+                        onSuccess("Position ${currentX}/${currentY} saved for ${existing.name}")
+                    } else {
+                        onError("Failed to save position: ${response.message}")
+                    }
+                } catch (e: Exception) {
+                    onError("Network error: ${e.message}")
                 }
             }
         } ?: onError("Not connected to server")
