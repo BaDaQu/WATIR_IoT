@@ -372,7 +372,7 @@ app.post('/api/plants', async (req, res) => {
         data.auto_watering ?? true,
         data.check_interval_ms ?? 10000,
         data.pan ?? 90,
-        data.tilt ?? 45
+        data.tilt ?? 90
       ]
     );
     res.status(201).json({ status: 'success', message: `Profil "${data.name}" został utworzony.`, data: result.rows[0] });
@@ -405,7 +405,7 @@ app.put('/api/plants/:id', async (req, res) => {
         data.auto_watering ?? true,
         data.check_interval_ms ?? 10000,
         data.pan ?? 90,
-        data.tilt ?? 45,
+        data.tilt ?? 90,
         id
       ]
     );
