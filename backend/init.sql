@@ -20,13 +20,15 @@ CREATE TABLE IF NOT EXISTS telemetry_logs (
 );
 
 -- Tabela 2: Profile Roślin (Konfiguracja dla ESP8266)
--- UWAGA: moisture_threshold przechowywany w PROCENTACH (0–100)
+-- UWAGA: moisture_threshold w % (0-100). Dodano pan/tilt (0-180 stopni) dla ramienia.
 CREATE TABLE IF NOT EXISTS plant_profiles (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     moisture_threshold INT NOT NULL CHECK (moisture_threshold >= 0 AND moisture_threshold <= 100),
     auto_watering BOOLEAN DEFAULT true,
-    check_interval_ms INT DEFAULT 10000
+    check_interval_ms INT DEFAULT 10000,
+    pan INT NOT NULL DEFAULT 90 CHECK (pan >= 0 AND pan <= 180),
+    tilt INT NOT NULL DEFAULT 45 CHECK (tilt >= 0 AND tilt <= 180)
 );
 
 -- ==========================================
@@ -34,17 +36,14 @@ CREATE TABLE IF NOT EXISTS plant_profiles (
 -- ==========================================
 
 -- Indeks główny: backend zawsze robi ORDER BY timestamp DESC
--- Największy zysk wydajnościowy przy dużej tabeli
 CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp
     ON telemetry_logs (timestamp DESC);
 
 -- Indeks pomocniczy: filtrowanie po urządzeniu (GET /api/telemetry?device_id=...)
--- Potrzebny gdy w sieci jest więcej niż jedno urządzenie WATIR
 CREATE INDEX IF NOT EXISTS idx_telemetry_device_id
     ON telemetry_logs (device_id);
 
 -- Indeks złożony: device_id + timestamp razem — najszybszy dla zapytań
--- "ostatnie N rekordów z konkretnego urządzenia"
 CREATE INDEX IF NOT EXISTS idx_telemetry_device_timestamp
     ON telemetry_logs (device_id, timestamp DESC);
 
@@ -52,10 +51,9 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_device_timestamp
 -- DANE TESTOWE
 -- ==========================================
 
--- POPRAWKA #2: moisture_threshold = 20 (procenty), było 200 (wartość ADC)
--- Constraint CHECK na tabeli odrzuciłby teraz wartość 200
-INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms)
-SELECT 'Kaktus_Testowy', 20, true, 10000
+-- Wrzucamy testowy profil rośliny (jeśli nie istnieje) z domyślnym położeniem serw (X: 120, Y: 30)
+INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms, pan, tilt)
+SELECT 'Kaktus_Testowy', 20, true, 10000, 120, 30
 WHERE NOT EXISTS (
     SELECT 1 FROM plant_profiles WHERE name = 'Kaktus_Testowy'
 );

@@ -31,7 +31,7 @@ pool.connect()
   .then(() => console.log('✅ Połączono z bazą PostgreSQL!'))
   .catch(err => {
     console.error('❌ Krytyczny błąd połączenia z bazą:', err.stack);
-    process.exit(1);
+    process.exit(1); // Zamknięcie procesu z kodem błędu dla Dockera
   });
 
 // ==========================================
@@ -63,8 +63,8 @@ async function enforceRetention(device_id) {
 // ==========================================
 // ENDPOINT 1: POST /api/telemetry (Dla ESP8266)
 // Odbiera JSON z ESP, zapisuje do bazy,
-// automatycznie zapamiętuje IP urządzenia,
-// a następnie wymusza retencję w tle.
+// automatycznie zapamiętuje rzeczywiste IP przysłane w JSONie,
+// następnie wymusza retencję dla tego urządzenia
 // ==========================================
 app.post('/api/telemetry', async (req, res) => {
   try {
@@ -76,15 +76,6 @@ app.post('/api/telemetry', async (req, res) => {
         status: 'error',
         message: 'Brakujące pola: wymagane device_id, sensors, status, servos'
       });
-    }
-
-    // Automatyczne wykrywanie i zapisywanie adresu IP ESP8266
-    const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const clientIp = rawIp.includes('::ffff:') ? rawIp.split('::ffff:')[1] : rawIp;
-
-    if (data.device_id) {
-      activeDevices[data.device_id] = clientIp;
-      console.log(`📡 Urządzenie ${data.device_id} zameldowało się z IP: ${clientIp}`);
     }
 
     const query = `
@@ -108,6 +99,15 @@ app.post('/api/telemetry', async (req, res) => {
     ];
 
     const result = await pool.query(query, values);
+
+    // Automatyczne wykrywanie i zapisywanie adresu IP ESP8266 (z nagłówka lub z połączenia)
+    const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const clientIp = rawIp.includes('::ffff:') ? rawIp.split('::ffff:')[1] : rawIp;
+
+    if (data.device_id) {
+      activeDevices[data.device_id] = clientIp;
+      console.log(`📡 Urządzenie ${data.device_id} zameldowało się z IP: ${clientIp}`);
+    }
 
     // Retencja w tle — nie blokuje odpowiedzi dla ESP
     enforceRetention(data.device_id);
@@ -162,7 +162,7 @@ app.get('/api/telemetry', async (req, res) => {
 
 // ==========================================
 // ENDPOINT 3: GET /api/telemetry/stats
-// Zwraca statystyki retencji
+// Zwraca statystyki retencji — pomocne do debugowania
 // ==========================================
 app.get('/api/telemetry/stats', async (req, res) => {
   try {
@@ -193,7 +193,7 @@ app.get('/api/telemetry/stats', async (req, res) => {
 
 // ==========================================
 // ENDPOINT 4: DELETE /api/telemetry
-// Ręczne wymuszenie retencji lub pełne czyszczenie
+// Ręczne czyszczenie bazy
 // ==========================================
 app.delete('/api/telemetry', async (req, res) => {
   try {
@@ -245,11 +245,10 @@ app.delete('/api/telemetry', async (req, res) => {
 
 // ==========================================
 // ENDPOINT 5: POST /api/move (Dla Aplikacji)
-// Odbiera ruch z joysticka i przekazuje do ESP8266
+// Odbiera ruch z joysticka i przekazuje bezpośrednio do ESP8266
 // ==========================================
 app.post('/api/move', async (req, res) => {
   try {
-    // POPRAWKA #4: device_id pobierany z body zamiast zahardkodowanego 'WATIR_01'
     const { device_id = 'WATIR_01', axis, value } = req.body;
 
     if (!axis || value === undefined) {
@@ -259,7 +258,6 @@ app.post('/api/move', async (req, res) => {
       });
     }
 
-    // POPRAWKA #1: Używamy espIp z activeDevices zamiast zahardkodowanego adresu
     const espIp = activeDevices[device_id];
 
     if (!espIp) {
@@ -304,10 +302,10 @@ app.post('/api/move', async (req, res) => {
 });
 
 // ==========================================
-// PROFIL ROŚLIN — pełny CRUD
+// PROFIL ROŚLIN — pełny CRUD z pozycjami serw (X/Y)
+// Podstawa pod issue #25 i #28
 // ==========================================
 
-// POPRAWKA #2: moisture_threshold w procentach (0-100), poprawiona walidacja
 function validatePlantProfile(data, requireAll = true) {
   const errors = [];
   if (requireAll && !data.name) errors.push('name jest wymagany');
@@ -324,9 +322,17 @@ function validatePlantProfile(data, requireAll = true) {
     typeof data.check_interval_ms !== 'number' ||
     data.check_interval_ms < 1000
   )) errors.push('check_interval_ms musi być liczbą >= 1000');
+
+  // Walidacja kątów serw (0-180 stopni)
+  if (data.pan !== undefined && (typeof data.pan !== 'number' || data.pan < 0 || data.pan > 180))
+    errors.push('pan musi być liczbą w zakresie 0-180');
+  if (data.tilt !== undefined && (typeof data.tilt !== 'number' || data.tilt < 0 || data.tilt > 180))
+    errors.push('tilt musi być liczbą w zakresie 0-180');
+
   return errors;
 }
 
+// GET /api/plants — lista wszystkich profili
 app.get('/api/plants', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM plant_profiles ORDER BY id');
@@ -337,6 +343,7 @@ app.get('/api/plants', async (req, res) => {
   }
 });
 
+// GET /api/plants/:id — jeden profil po ID
 app.get('/api/plants/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -349,6 +356,7 @@ app.get('/api/plants/:id', async (req, res) => {
   }
 });
 
+// POST /api/plants — utwórz nowy profil (z pozycjami serw)
 app.post('/api/plants', async (req, res) => {
   try {
     const data = req.body;
@@ -356,9 +364,16 @@ app.post('/api/plants', async (req, res) => {
     if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
     const result = await pool.query(
-      `INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [data.name, data.moisture_threshold, data.auto_watering ?? true, data.check_interval_ms ?? 10000]
+      `INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms, pan, tilt)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [
+        data.name,
+        data.moisture_threshold,
+        data.auto_watering ?? true,
+        data.check_interval_ms ?? 10000,
+        data.pan ?? 90,
+        data.tilt ?? 45
+      ]
     );
     res.status(201).json({ status: 'success', message: `Profil "${data.name}" został utworzony.`, data: result.rows[0] });
   } catch (error) {
@@ -367,6 +382,7 @@ app.post('/api/plants', async (req, res) => {
   }
 });
 
+// PUT /api/plants/:id — nadpisz cały profil
 app.put('/api/plants/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -375,8 +391,23 @@ app.put('/api/plants/:id', async (req, res) => {
     if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
     const result = await pool.query(
-      `UPDATE plant_profiles SET name = $1, moisture_threshold = $2, auto_watering = $3, check_interval_ms = $4 WHERE id = $5 RETURNING *`,
-      [data.name, data.moisture_threshold, data.auto_watering ?? true, data.check_interval_ms ?? 10000, id]
+      `UPDATE plant_profiles 
+       SET name = $1, 
+           moisture_threshold = $2, 
+           auto_watering = $3, 
+           check_interval_ms = $4,
+           pan = $5,
+           tilt = $6
+       WHERE id = $7 RETURNING *`,
+      [
+        data.name,
+        data.moisture_threshold,
+        data.auto_watering ?? true,
+        data.check_interval_ms ?? 10000,
+        data.pan ?? 90,
+        data.tilt ?? 45,
+        id
+      ]
     );
     if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
     res.status(200).json({ status: 'success', message: `Profil ID ${id} został zaktualizowany.`, data: result.rows[0] });
@@ -386,6 +417,7 @@ app.put('/api/plants/:id', async (req, res) => {
   }
 });
 
+// PATCH /api/plants/:id — częściowy update (np. tylko zmiana pozycji serwa z telefonu)
 app.patch('/api/plants/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -395,7 +427,7 @@ app.patch('/api/plants/:id', async (req, res) => {
     const errors = validatePlantProfile(data, false);
     if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
-    const allowed = ['name', 'moisture_threshold', 'auto_watering', 'check_interval_ms'];
+    const allowed = ['name', 'moisture_threshold', 'auto_watering', 'check_interval_ms', 'pan', 'tilt'];
     const fields = Object.keys(data).filter(k => allowed.includes(k));
     if (fields.length === 0) return res.status(400).json({ status: 'error', message: 'Żadne z podanych pól nie jest dozwolone.' });
 
@@ -412,6 +444,7 @@ app.patch('/api/plants/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/plants/:id — usuwanie profilu
 app.delete('/api/plants/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -424,29 +457,31 @@ app.delete('/api/plants/:id', async (req, res) => {
   }
 });
 
-// POPRAWKA #3: /api/plants/:id/apply faktycznie wysyła config do ESP
+// POST /api/plants/:id/apply — zaaplikowanie profilu (wysyła config wraz z kątami pan/tilt do ESP)
 app.post('/api/plants/:id/apply', async (req, res) => {
   try {
     const { id } = req.params;
-    // device_id można przekazać w body, domyślnie 'WATIR_01'
     const { device_id = 'WATIR_01' } = req.body || {};
 
     const result = await pool.query('SELECT * FROM plant_profiles WHERE id = $1', [id]);
     if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
 
     const profile = result.rows[0];
+
+    // Dodajemy pozycje serw (pan/tilt) do konfiguracji wysyłanej do ESP
     const espConfig = {
       config: {
         moisture_threshold: profile.moisture_threshold,
         auto_watering: profile.auto_watering,
-        check_interval_ms: profile.check_interval_ms
+        check_interval_ms: profile.check_interval_ms,
+        pan: profile.pan,
+        tilt: profile.tilt
       }
     };
 
     const espIp = activeDevices[device_id];
 
     if (!espIp) {
-      // Urządzenie jeszcze nie zameldowało się — zwróć ostrzeżenie, ale nie blokuj
       console.warn(`⚠️ Urządzenie ${device_id} nieznane (brak telemetrii). Profil zapisany tylko w odpowiedzi.`);
       return res.status(200).json({
         status: 'success',
@@ -468,7 +503,7 @@ app.post('/api/plants/:id/apply', async (req, res) => {
     if (espResponse.ok) {
       return res.status(200).json({
         status: 'success',
-        message: `Profil "${profile.name}" został wysłany do urządzenia.`,
+        message: `Profil "${profile.name}" został pomyślnie wysłany do urządzenia.`,
         applied_profile: profile,
         esp_config: espConfig,
         esp_sent: true
@@ -489,8 +524,7 @@ app.post('/api/plants/:id/apply', async (req, res) => {
 });
 
 // ==========================================
-// POPRAWKA #6: Globalny error handler Express
-// Łapie wszystkie nieobsłużone błędy z middleware
+// Globalny error handler Express
 // ==========================================
 app.use((err, req, res, next) => {
   console.error('Nieobsłużony błąd:', err);
