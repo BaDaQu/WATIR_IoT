@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS plant_profiles (
     auto_watering BOOLEAN DEFAULT true,
     check_interval_ms INT DEFAULT 10000,
     pan INT NOT NULL DEFAULT 90 CHECK (pan >= 0 AND pan <= 180),
-    tilt INT NOT NULL DEFAULT 45 CHECK (tilt >= 0 AND tilt <= 180)
+    tilt INT NOT NULL DEFAULT 90 CHECK (tilt >= 0 AND tilt <= 180)
 );
 
 -- ==========================================
