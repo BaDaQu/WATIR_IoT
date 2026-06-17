@@ -22,9 +22,11 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally){
         VirtualJoystick(
-            onMove = { panValue, tiltValue ->
-                watirViewModel.sendMove("X", panValue)
-                watirViewModel.sendMove("Y", tiltValue)
+            onMove = { x, y ->
+                watirViewModel.onJoystickMoved(x, y)
+            },
+            onStop = {
+                watirViewModel.onJoystickStopped()
             }
         )
         Spacer(modifier = Modifier.height(48.dp))

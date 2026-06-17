@@ -18,7 +18,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun VirtualJoystick(
-    onMove: (panValue: Int, tiltValue: Int) -> Unit = { _, _ -> }
+    onMove: (xPercent: Float, yPercent: Float) -> Unit,
+    onStop: () -> Unit
 ) {
     var thumbOffset by remember { mutableStateOf(Offset.Zero) }
     val maxRadius = 150f
@@ -31,11 +32,12 @@ fun VirtualJoystick(
                     onDragEnd = {
                         thumbOffset = Offset.Zero
                     }
-                ){
-                    change, dragAmount->
+                ){ change, dragAmount->
+
                     change.consume()
                     val newOffset = thumbOffset + dragAmount
                     val distance = newOffset.getDistance()
+
                     if(distance <= maxRadius){
                         thumbOffset = newOffset
                     }
@@ -43,15 +45,11 @@ fun VirtualJoystick(
                         thumbOffset = newOffset / distance * maxRadius
                     }
 
-                    // Przeliczenie offsetu pikseli na kąty 0-180
-                    // thumbOffset.x: -maxRadius..+maxRadius → 0..180 (pan)
-                    // thumbOffset.y: -maxRadius..+maxRadius → 180..0 (tilt, odwrócony – góra = wyższy kąt)
-                    val panValue = ((thumbOffset.x / maxRadius) * 90f + 90f)
-                        .toInt().coerceIn(0, 180)
-                    val tiltValue = ((-thumbOffset.y / maxRadius) * 90f + 90f)
-                        .toInt().coerceIn(0, 180)
+                    // Obliczamy wychylenie od -1.0 do 1.0
+                    val xPercent = thumbOffset.x / maxRadius
+                    val yPercent = thumbOffset.y / maxRadius
 
-                    onMove(panValue, tiltValue)
+                    onMove(xPercent, yPercent)
                 }
             }) {
         drawCircle(
@@ -64,10 +62,4 @@ fun VirtualJoystick(
             center = center + thumbOffset
         )
     }
-}
-
-@Preview
-@Composable
-private fun VirtualJoystickPreview() {
-    VirtualJoystick()
 }

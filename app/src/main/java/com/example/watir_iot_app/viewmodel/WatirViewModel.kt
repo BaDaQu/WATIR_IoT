@@ -8,8 +8,10 @@ import com.example.watir_iot_app.data.model.TelemetryHistoryResponse
 import com.example.watir_iot_app.network.APIClients
 import com.example.watir_iot_app.network.WatirAPI
 import com.example.watir_iot_app.data.model.PlantProfile
-import com.example.watir_iot_app.data.model.TelemetryDbRow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 
 class WatirViewModel : ViewModel(){
 
@@ -26,6 +28,56 @@ class WatirViewModel : ViewModel(){
 
     private val throttleIntervalMs = 200L
     private val lastSendTimestamps = mutableMapOf<String, Long>()
+
+    private var currentX = 90
+    private var currentY = 90
+
+    private var joystickDeltaX = 0f
+    private var joystickDeltaY = 0f
+
+    private var joystickJob: Job? = null
+
+    fun onJoystickMoved(xPercent: Float, yPercent: Float) {
+        joystickDeltaX = xPercent
+        joystickDeltaY = yPercent
+
+        if (joystickJob == null || !joystickJob!!.isActive) {
+            startJoystickLoop()
+        }
+    }
+
+    fun onJoystickStopped() {
+        joystickDeltaX = 0f
+        joystickDeltaY = 0f
+        joystickJob?.cancel()
+    }
+
+    private fun startJoystickLoop() {
+        joystickJob = viewModelScope.launch {
+            while (isActive) {
+                var changed = false
+
+                if (Math.abs(joystickDeltaX) > 0.2f) {
+                    val step = if (joystickDeltaX > 0) -2 else 2
+                    currentX = (currentX + step).coerceIn(0, 180)
+                    changed = true
+                }
+
+                if (Math.abs(joystickDeltaY) > 0.2f) {
+                    val step = if (joystickDeltaY > 0) 2 else -2
+                    currentY = (currentY + step).coerceIn(0, 180)
+                    changed = true
+                }
+
+                if (changed) {
+                    sendMove("X", currentX)
+                    sendMove("Y", currentY)
+                }
+
+                delay(50)
+            }
+        }
+    }
 
     fun connectToServer(ipAddress: String) {
         viewModelScope.launch {
