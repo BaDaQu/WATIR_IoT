@@ -29,7 +29,9 @@ data class PlantProfile(
     val name: String,
     val moisture_threshold: Int,
     val auto_watering: Boolean,
-    val check_interval_ms: Int
+    val check_interval_ms: Int,
+    val pan: Int,
+    val tilt: Int
 )
 
 data class PlantProfileListResponse(
@@ -47,7 +49,9 @@ data class PlantProfileRequest(
     val name: String,
     val moisture_threshold: Int,
     val auto_watering: Boolean,
-    val check_interval_ms: Int
+    val check_interval_ms: Int,
+    val pan: Int,
+    val tilt: Int
 )
 
 data class PlantProfileResponse(
