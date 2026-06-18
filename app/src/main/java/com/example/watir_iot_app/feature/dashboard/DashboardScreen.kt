@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.watir_iot_app.feature.dashboard.components.SensorCard
@@ -23,6 +24,7 @@ import com.example.watir_iot_app.viewmodel.WatirViewModel
 @Composable
 fun DashboardScreen(viewModel: WatirViewModel) {
     val latestData = viewModel.telemetryHistory.value.data.firstOrNull()
+
     val humidityText = latestData?.humidity?.let { "$it%" } ?: "--%"
     val soilMoistureText = latestData?.soil_moisture?.let { "$it%" } ?: "--%"
     val tempText = latestData?.temp?.let { "$it°C" } ?: "--°C"
@@ -34,6 +36,13 @@ fun DashboardScreen(viewModel: WatirViewModel) {
     } else {
         latestData?.water_level_cm?.let { "${it} cm" } ?: "Brak danych"
     }
+
+    // Paleta WATIR
+    val watirNavy = Color(0xFF102A43)
+    val watirBlue = Color(0xFF2EB4E6)
+    val watirGreen = Color(0xFF549E39)
+    val watirDarkRed = Color(0xFFB71C1C) // Ciemny, elegancki czerwony dla termometru
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -44,12 +53,45 @@ fun DashboardScreen(viewModel: WatirViewModel) {
             text = "Twój Mikroklimat",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
+            color = watirNavy,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        SensorCard("Temperatura", tempText, Icons.Default.Thermostat, modifier = Modifier.fillMaxWidth())
-        SensorCard("Wilgotność powietrza", humidityText, Icons.Default.WaterDrop, modifier = Modifier.fillMaxWidth())
-        SensorCard("Wilgotność gleby", soilMoistureText, Icons.Default.Eco, modifier = Modifier.fillMaxWidth())
-        SensorCard("Poziom wody", waterText, Icons.Default.Waves, modifier = Modifier.fillMaxWidth())
-        SensorCard("Stan Pompy", pumpText, Icons.Default.PowerSettingsNew, modifier = Modifier.fillMaxWidth())
+
+        SensorCard(
+            title = "Temperatura",
+            value = tempText,
+            icon = Icons.Default.Thermostat,
+            iconTint = watirDarkRed,
+            modifier = Modifier.fillMaxWidth()
+        )
+        SensorCard(
+            title = "Wilgotność powietrza",
+            value = humidityText,
+            icon = Icons.Default.WaterDrop,
+            iconTint = watirBlue,
+            modifier = Modifier.fillMaxWidth()
+        )
+        SensorCard(
+            title = "Wilgotność gleby",
+            value = soilMoistureText,
+            icon = Icons.Default.Eco,
+            iconTint = watirGreen,
+            modifier = Modifier.fillMaxWidth()
+        )
+        SensorCard(
+            title = "Poziom wody",
+            value = waterText,
+            icon = Icons.Default.Waves,
+            iconTint = watirBlue,
+            valueColor = if (latestData?.water_error == true) Color(0xFFD32F2F) else watirNavy,
+            modifier = Modifier.fillMaxWidth()
+        )
+        SensorCard(
+            title = "Stan Pompy",
+            value = pumpText,
+            icon = Icons.Default.PowerSettingsNew,
+            iconTint = if (latestData?.pump_active == true) watirGreen else Color.Gray,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }

@@ -3,12 +3,13 @@ package com.example.watir_iot_app.feature.joystick
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -26,9 +27,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.watir_iot_app.data.model.PlantProfile
 import com.example.watir_iot_app.feature.joystick.components.VirtualJoystick
 import com.example.watir_iot_app.viewmodel.WatirViewModel
@@ -43,17 +45,29 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
     var expanded by remember { mutableStateOf(false) }
     var selectedPlant by remember { mutableStateOf<PlantProfile?>(null) }
 
+    // Paleta Kolorów z Logo WATIR
+    val watirNavy = Color(0xFF102A43)
+    val watirBlue = Color(0xFF2EB4E6)
+    val watirGreen = Color(0xFF549E39)
+
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally)
-    {
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
 
-        Text("Sterowanie Ręczne", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = "Sterowanie Ręczne",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = watirNavy
+        )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
+        // Joystick - dodaliśmy rozmiar (size) żeby go powiększyć
         VirtualJoystick(
+            modifier = Modifier.size(240.dp),
             onMove = { x, y ->
                 watirViewModel.onJoystickMoved(x, y)
             },
@@ -62,16 +76,22 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             }
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(48.dp))
 
-        Text("Wybierz roślinę do kalibracji", style = MaterialTheme.typography.labelLarge)
+        Text(
+            text = "Wybierz roślinę do kalibracji",
+            style = MaterialTheme.typography.titleMedium,
+            color = watirNavy
+        )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = !expanded },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp) // Piękne marginesy boczne
         ) {
             OutlinedTextField(
                 value = selectedPlant?.name ?: "Wybierz profil",
@@ -81,7 +101,11 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                 modifier = Modifier
                     .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true)
                     .fillMaxWidth(),
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
+                    focusedBorderColor = watirBlue, // Niebieski akcent przy kliknięciu
+                    unfocusedBorderColor = watirNavy.copy(alpha = 0.5f)
+                ),
+                shape = MaterialTheme.shapes.medium
             )
 
             ExposedDropdownMenu(
@@ -90,7 +114,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             ) {
                 plantProfiles.forEach { plant ->
                     DropdownMenuItem(
-                        text = { Text(plant.name) },
+                        text = { Text(plant.name, color = watirNavy) },
                         onClick = {
                             selectedPlant = plant
                             expanded = false
@@ -100,14 +124,26 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp), // Zrównane marginesy z dropdownem
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Button(onClick = {
-
-            }) {Text("Podlej") }
+            Button(
+                onClick = {
+                    // Miejsce na akcję podlewania
+                },
+                modifier = Modifier
+                    .weight(0.4f) // Zajmuje 40% szerokości
+                    .height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = watirBlue),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text("Podlej", fontWeight = FontWeight.Bold)
+            }
 
             Button(
                 onClick = {
@@ -120,13 +156,16 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     }
                 },
                 enabled = selectedPlant != null,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(0.6f) // Zajmuje 60% szerokości (bo ma dłuższy tekst)
+                    .height(50.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary
+                    containerColor = watirGreen, // Kolor sukcesu / rośliny
+                    disabledContainerColor = Color.LightGray
                 ),
-                contentPadding = PaddingValues(12.dp)
+                shape = MaterialTheme.shapes.medium
             ) {
-                Text("Zapisz pozycje dla rośliny")
+                Text("Zapisz pozycję", fontWeight = FontWeight.Bold)
             }
         }
     }
