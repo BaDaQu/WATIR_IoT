@@ -23,38 +23,31 @@ fun VirtualJoystick(
     onStop: () -> Unit
 ) {
     var thumbOffset by remember { mutableStateOf(Offset.Zero) }
-    var maxRadius by remember { mutableStateOf(1f) } // Obliczany dynamicznie!
-
-    // Kolory z logo WATIR
+    var maxRadius by remember { mutableStateOf(1f) }
     val watirNavy = Color(0xFF102A43)
     val watirBlue = Color(0xFF2EB4E6)
 
     Canvas(
         modifier = modifier
-            .size(240.dp) // Domyślny rozmiar (zostanie nadpisany, jeśli podano inny z zewnątrz)
+            .size(240.dp)
             .onSizeChanged { size ->
-                // Super ważna poprawka: dynamiczny promień dostosowany do każdego ekranu!
                 maxRadius = (size.width.coerceAtMost(size.height) / 2f)
             }
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragEnd = {
                         thumbOffset = Offset.Zero
-                        onStop() // UWAGA: Naprawiony błąd! Teraz silniki na pewno się zatrzymają.
+                        onStop()
                     }
                 ) { change, dragAmount ->
                     change.consume()
                     val newOffset = thumbOffset + dragAmount
                     val distance = newOffset.getDistance()
-
-                    // Trygonometria: nie pozwalamy kropce wyjść poza koło
                     if (distance <= maxRadius) {
                         thumbOffset = newOffset
                     } else {
                         thumbOffset = newOffset / distance * maxRadius
                     }
-
-                    // Obliczamy wychylenie od -1.0 do 1.0
                     val xPercent = thumbOffset.x / maxRadius
                     val yPercent = thumbOffset.y / maxRadius
 
@@ -62,21 +55,18 @@ fun VirtualJoystick(
                 }
             }
     ) {
-        // 1. Baza joysticka (delikatne granatowe tło)
         drawCircle(
             color = watirNavy.copy(alpha = 0.05f),
             radius = maxRadius
         )
-        // 2. Obwódka bazy (wyraźniejsza)
         drawCircle(
             color = watirNavy.copy(alpha = 0.2f),
             radius = maxRadius,
             style = Stroke(width = 4f)
         )
-        // 3. "Grzybek" (piękny błękitny kciuk do sterowania)
         drawCircle(
             color = watirBlue,
-            radius = maxRadius * 0.35f, // Grzybek zajmuje zawsze proporcjonalnie 35% bazy
+            radius = maxRadius * 0.35f,
             center = center + thumbOffset
         )
     }

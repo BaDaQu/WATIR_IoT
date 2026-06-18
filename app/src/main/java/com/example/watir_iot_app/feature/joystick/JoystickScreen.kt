@@ -45,7 +45,6 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
     var expanded by remember { mutableStateOf(false) }
     var selectedPlant by remember { mutableStateOf<PlantProfile?>(null) }
 
-    // Paleta Kolorów z Logo WATIR
     val watirNavy = Color(0xFF102A43)
     val watirBlue = Color(0xFF2EB4E6)
     val watirGreen = Color(0xFF549E39)
@@ -64,8 +63,6 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         )
 
         Spacer(modifier = Modifier.height(32.dp))
-
-        // Joystick - dodaliśmy rozmiar (size) żeby go powiększyć
         VirtualJoystick(
             modifier = Modifier.size(240.dp),
             onMove = { x, y ->
@@ -91,7 +88,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             onExpandedChange = { expanded = !expanded },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp) // Piękne marginesy boczne
+                .padding(horizontal = 24.dp)
         ) {
             OutlinedTextField(
                 value = selectedPlant?.name ?: "Wybierz profil",
@@ -102,7 +99,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true)
                     .fillMaxWidth(),
                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
-                    focusedBorderColor = watirBlue, // Niebieski akcent przy kliknięciu
+                    focusedBorderColor = watirBlue,
                     unfocusedBorderColor = watirNavy.copy(alpha = 0.5f)
                 ),
                 shape = MaterialTheme.shapes.medium
@@ -129,15 +126,14 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp), // Zrównane marginesy z dropdownem
+                .padding(horizontal = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Button(
                 onClick = {
-                    // Miejsce na akcję podlewania
                 },
                 modifier = Modifier
-                    .weight(0.4f) // Zajmuje 40% szerokości
+                    .weight(0.4f)
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = watirBlue),
                 shape = MaterialTheme.shapes.medium
@@ -157,10 +153,10 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                 },
                 enabled = selectedPlant != null,
                 modifier = Modifier
-                    .weight(0.6f) // Zajmuje 60% szerokości (bo ma dłuższy tekst)
+                    .weight(0.6f)
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = watirGreen, // Kolor sukcesu / rośliny
+                    containerColor = watirGreen,
                     disabledContainerColor = Color.LightGray
                 ),
                 shape = MaterialTheme.shapes.medium

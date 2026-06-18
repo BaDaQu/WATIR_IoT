@@ -58,7 +58,6 @@ fun SettingsScreen(viewModel: WatirViewModel) {
     var thresholdInput by remember { mutableStateOf("") }
     var intervalInput by remember { mutableStateOf("") }
 
-    // Paleta WATIR
     val watirNavy = Color(0xFF102A43)
     val watirBlue = Color(0xFF2EB4E6)
     val watirGreen = Color(0xFF549E39)

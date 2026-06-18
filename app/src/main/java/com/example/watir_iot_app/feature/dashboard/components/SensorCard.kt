@@ -27,13 +27,13 @@ fun SensorCard(
     value: String,
     icon: ImageVector,
     modifier: Modifier = Modifier,
-    iconTint: Color = Color(0xFF102A43), // Domyślnie Granat WATIR
-    valueColor: Color = Color(0xFF102A43) // Domyślnie Granat WATIR
+    iconTint: Color = Color(0xFF102A43),
+    valueColor: Color = Color(0xFF102A43)
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White // Wymuszamy białe tło karty dla lepszego kontrastu
+            containerColor = Color.White
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -45,7 +45,7 @@ fun SensorCard(
                 imageVector = icon,
                 contentDescription = title,
                 modifier = Modifier.size(40.dp),
-                tint = iconTint // Używamy przypisanego koloru (np. z logo)
+                tint = iconTint
             )
             Spacer(
                 modifier = Modifier.width(16.dp)
@@ -62,7 +62,7 @@ fun SensorCard(
                     text = value,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = valueColor // Używamy przypisanego koloru (np. czerwony dla braku wody)
+                    color = valueColor
                 )
             }
         }

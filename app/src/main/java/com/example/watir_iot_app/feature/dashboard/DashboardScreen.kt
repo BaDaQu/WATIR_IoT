@@ -37,11 +37,10 @@ fun DashboardScreen(viewModel: WatirViewModel) {
         latestData?.water_level_cm?.let { "${it} cm" } ?: "Brak danych"
     }
 
-    // Paleta WATIR
     val watirNavy = Color(0xFF102A43)
     val watirBlue = Color(0xFF2EB4E6)
     val watirGreen = Color(0xFF549E39)
-    val watirDarkRed = Color(0xFFB71C1C) // Ciemny, elegancki czerwony dla termometru
+    val watirDarkRed = Color(0xFFB71C1C)
 
     Column(
         modifier = Modifier
