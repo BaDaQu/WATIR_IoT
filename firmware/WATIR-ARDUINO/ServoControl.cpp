@@ -1,10 +1,20 @@
+// ============================================
+// WATIR IoT — Firmware dla Arduino UNO R4 WiFi
+// Wersja: 2.0 — WiFi wbudowane (bez osobnego ESP)
+// ============================================
+//
+// Moduł: Serwomechanizmy
+// Implementacja funkcji obsługujących ramię robota 
+// (serwa Pan/Tilt) oraz wejście z analogowego joysticka.
+//
+
 #include "ServoControl.h"
 #include <Servo.h>
 #include <EEPROM.h>
 
 // Piny dla ramienia robotycznego
-const int pinSerwo1 = 11; 
-const int pinSerwo2 = 10; 
+const int pinSerwo1 = 9; 
+const int pinSerwo2 = 6; 
 const int pinJoyX = A3;
 const int pinJoyY = A2;
 
@@ -17,6 +27,9 @@ int aktualnaPozycjaY = 90;
 // Martwa strefa (margines błędu dla joysticka)
 const int martwaStrefaMin = 400; 
 const int martwaStrefaMax = 600; 
+
+// Krok serwa w stopniach na tick (większy = szybszy ruch)
+const int krokSerwa = 5;
 
 // Adresy komórek pamięci EEPROM dla dwóch roślin
 const int ADRES_G1_X = 0;
@@ -78,46 +91,51 @@ int pobierzKierunekJoysticka() {
     return 0;               
 }
 
+// Aktywny kierunek z aplikacji WiFi (ustawiany przez handleMove)
+// Dopóki nie przyjdzie "stop", firmware sam porusza serwem
+// w każdym obrocie pętli — identycznie jak fizyczny joystick.
+String komendaWiFiCiagla = "";
+
 // Odświeżanie pozycji ramienia (obsługa WiFi i fizycznego joysticka)
-void aktualizujSerwa(String komendaWiFi, bool blokadaSerw) {
+void aktualizujSerwa(bool blokadaSerw) {
     if (blokadaSerw) return;
 
-    // Sterowanie bezprzewodowe (z aplikacji)
-    if (komendaWiFi == "gora")  aktualnaPozycjaY = constrain(aktualnaPozycjaY + 15, 0, 180);
-    else if (komendaWiFi == "dol")   aktualnaPozycjaY = constrain(aktualnaPozycjaY - 15, 0, 180);
-    else if (komendaWiFi == "lewo")  aktualnaPozycjaX = constrain(aktualnaPozycjaX + 15, 0, 180);
-    else if (komendaWiFi == "prawo") aktualnaPozycjaX = constrain(aktualnaPozycjaX - 15, 0, 180);
-
-    // Sterowanie manualne (fizyczny joystick na obudowie)
+    // Wspólny timer dla obu źródeł sterowania (25ms między krokami)
     static unsigned long ostatniKrok = 0;
-    if (millis() - ostatniKrok >= 25) { 
-        ostatniKrok = millis();
+    if (millis() - ostatniKrok < 25) return;
+    ostatniKrok = millis();
 
-        int ox = analogRead(pinJoyX);
-        int oy = analogRead(pinJoyY);
+    // --- Sterowanie bezprzewodowe (ciągły kierunek z aplikacji) ---
+    if (komendaWiFiCiagla == "lewo")       aktualnaPozycjaX += krokSerwa;
+    else if (komendaWiFiCiagla == "prawo")  aktualnaPozycjaX -= krokSerwa;
+    else if (komendaWiFiCiagla == "gora")   aktualnaPozycjaY -= krokSerwa;
+    else if (komendaWiFiCiagla == "dol")    aktualnaPozycjaY += krokSerwa;
 
-        // Obliczamy dominującą oś ruchu, by ignorować fałszywe skosy
-        int odchylenieX = abs(ox - 512);
-        int odchylenieY = abs(oy - 512);
+    // --- Sterowanie manualne (fizyczny joystick na obudowie) ---
+    int ox = analogRead(pinJoyX);
+    int oy = analogRead(pinJoyY);
 
-        if (odchylenieX > odchylenieY) {
-            // Reaguj tylko na oś X (lewo/prawo)
-            if (ox > martwaStrefaMax) aktualnaPozycjaX -= 2;
-            else if (ox < martwaStrefaMin) aktualnaPozycjaX += 2;
-        } 
-        else if (odchylenieY > odchylenieX) {
-            // Reaguj tylko na oś Y (góra/dół)
-            if (oy > martwaStrefaMax) aktualnaPozycjaY += 2;
-            else if (oy < martwaStrefaMin) aktualnaPozycjaY -= 2;
-        }
+    // Obliczamy dominującą oś ruchu, by ignorować fałszywe skosy
+    int odchylenieX = abs(ox - 512);
+    int odchylenieY = abs(oy - 512);
 
-        // Zabezpieczenie limitów ruchu (0 - 180 stopni)
-        aktualnaPozycjaX = constrain(aktualnaPozycjaX, 0, 180);
-        aktualnaPozycjaY = constrain(aktualnaPozycjaY, 0, 180);
-
-        if (serwoX.attached()) serwoX.write(aktualnaPozycjaX);
-        if (serwoY.attached()) serwoY.write(aktualnaPozycjaY);
+    if (odchylenieX > odchylenieY) {
+        // Reaguj tylko na oś X (lewo/prawo)
+        if (ox > martwaStrefaMax) aktualnaPozycjaX -= krokSerwa;
+        else if (ox < martwaStrefaMin) aktualnaPozycjaX += krokSerwa;
+    } 
+    else if (odchylenieY > odchylenieX) {
+        // Reaguj tylko na oś Y (góra/dół)
+        if (oy > martwaStrefaMax) aktualnaPozycjaY += krokSerwa;
+        else if (oy < martwaStrefaMin) aktualnaPozycjaY -= krokSerwa;
     }
+
+    // Zabezpieczenie limitów ruchu (0 - 180 stopni)
+    aktualnaPozycjaX = constrain(aktualnaPozycjaX, 0, 180);
+    aktualnaPozycjaY = constrain(aktualnaPozycjaY, 0, 180);
+
+    if (serwoX.attached()) serwoX.write(aktualnaPozycjaX);
+    if (serwoY.attached()) serwoY.write(aktualnaPozycjaY);
 }
 void powrotDoBazy() {
     aktualnaPozycjaX = 90;
@@ -130,3 +148,12 @@ void powrotDoBazy() {
 // Funkcje pomocnicze zwracające kąty
 int pobierzPozycjeSerwaX() { return aktualnaPozycjaX; }
 int pobierzPozycjeSerwaY() { return aktualnaPozycjaY; }
+
+// Bezpośrednie ustawienie pozycji serw z WiFi (z /api/move i /api/config)
+void ustawPozycjeSerwaWiFi(int x, int y) {
+    uzyjSerw(true); // Upewnij się, że serwa są podłączone
+    aktualnaPozycjaX = constrain(x, 0, 180);
+    aktualnaPozycjaY = constrain(y, 0, 180);
+    serwoX.write(aktualnaPozycjaX);
+    serwoY.write(aktualnaPozycjaY);
+}
