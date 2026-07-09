@@ -10,6 +10,10 @@ data class MoveRequest(
     val value: Int
 )
 
+data class DirectionRequest(
+    val direction: String
+)
+
 data class TelemetryDbRow(
     val id: Int,
     val device_id: String,

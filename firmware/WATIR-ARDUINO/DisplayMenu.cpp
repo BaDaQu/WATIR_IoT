@@ -1,3 +1,12 @@
+// ============================================
+// WATIR IoT — Firmware dla Arduino UNO R4 WiFi
+// Wersja: 2.0 — WiFi wbudowane (bez osobnego ESP)
+// ============================================
+//
+// Moduł: Wyświetlacz
+// Implementacja funkcji obsługujących ekran LCD I2C.
+//
+
 #include "DisplayMenu.h"
 #include <LiquidCrystal_I2C.h>
 #include "ServoControl.h"
@@ -7,45 +16,18 @@ extern bool trybAutomatyczny;
 
 // Uruchomienie ekranu LCD
 void konfigurujWyswietlacz() {
+  delay(100); // Odczekaj, aby sterownik HD44780 zdążył przetrawić reset sprzętowy
+  
+  // Wymuszenie twardego resetu magistrali I2C
+  Wire.end();
+  delay(10);
+  Wire.begin();
+  
   lcd.init();
+  delay(50);
+  lcd.init(); // Podwójny init pomaga powrócić z trybu 4-bit na niektórych tanich wyświetlaczach
   lcd.backlight();
+  lcd.clear();
 }
 
-// Główny ekran wyboru trybu przy uruchomieniu robota
-void pokazMenu() {
-  int kursor = 0;
-  bool wybrany = false;
-  
-  lcd.clear();
-  
-  while (!wybrany) {
-    lcd.setCursor(0, 0); 
-    lcd.print("WYBIERZ TRYB:");
-    
-    // Odczyt kierunku, aby przesuwać strzałkę wyboru
-    int kierunek = pobierzKierunekJoysticka();
-    if (kierunek != 0) { 
-        kursor = (kierunek > 0) ? 1 : 0; 
-        delay(200); 
-    }
-    
-    // Wizualizacja strzałki na ekranie
-    lcd.setCursor(0, 1);
-    if (kursor == 0) lcd.print("> AUTO   MANUAL ");
-    else             lcd.print("  AUTO > MANUAL ");
-    
-    // Potwierdzenie przyciskiem z joysticka
-    if (digitalRead(2) == LOW) { 
-        trybAutomatyczny = (kursor == 0); 
-        wybrany = true; 
-        delay(500); 
-    }
-    delay(50);
-  }
-  
-  // Zakończenie konfiguracji
-  lcd.clear(); 
-  lcd.print("STARTUJEMY..."); 
-  delay(1000); 
-  lcd.clear();
-}
+// Zakończono konfigurację (pozostałe funkcje usunięte)

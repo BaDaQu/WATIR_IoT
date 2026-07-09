@@ -258,7 +258,7 @@ app.post('/api/move', async (req, res) => {
       });
     }
 
-    const espIp = activeDevices[device_id];
+    const espIp = "10.101.29.191";
 
     if (!espIp) {
       return res.status(404).json({
