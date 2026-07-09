@@ -64,3 +64,9 @@ data class PlantProfileResponse(
     val data: PlantProfile? = null,
     val deleted: PlantProfile? = null
 )
+
+data class PumpRequest(
+    val device_id: String = "WATIR_01",
+    val power: Int,
+    val duration: Int = 0
+)

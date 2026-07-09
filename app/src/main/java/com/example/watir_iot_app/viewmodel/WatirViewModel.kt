@@ -10,6 +10,7 @@ import com.example.watir_iot_app.network.APIClients
 import com.example.watir_iot_app.network.WatirAPI
 import com.example.watir_iot_app.data.model.PlantProfile
 import com.example.watir_iot_app.data.model.PlantProfileRequest
+import com.example.watir_iot_app.data.model.PumpRequest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -281,5 +282,22 @@ class WatirViewModel : ViewModel(){
                 }
             }
         }
+    }
+
+    fun triggerPump(power: Int, duration: Int = 3000) {
+        watirAPI?.let { api ->
+            viewModelScope.launch {
+                try {
+                    api.triggerPump(PumpRequest(power = power, duration = duration))
+                    println("Pump command sent successfully!")
+                } catch (e: Exception) {
+                    println("Failed to send pump command: ${e.message}")
+                }
+            }
+        } ?: println("Not connected to server")
+    }
+
+    fun setPumpPower(power: Int){
+        triggerPump(power, 0)
     }
 }

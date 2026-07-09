@@ -30,9 +30,12 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,8 +47,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.watir_iot_app.data.model.PlantProfile
 import com.example.watir_iot_app.viewmodel.WatirViewModel
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +61,8 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
 
     var expanded by remember { mutableStateOf(false) }
     var selectedPlant by remember { mutableStateOf<PlantProfile?>(null) }
+
+    var pumpPower by remember { mutableFloatStateOf(50f) }
 
     val watirNavy = Color(0xFF102A43)
     val watirBlue = Color(0xFF2EB4E6)
@@ -74,7 +81,34 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             color = watirNavy
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Moc pompy: ${pumpPower.roundToInt()}%",
+            style = MaterialTheme.typography.titleMedium,
+            color = watirNavy,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        Slider(
+            value = pumpPower,
+            onValueChange = {
+                pumpPower = it
+                watirViewModel.setPumpPower(it.toInt())
+                            },
+            valueRange = 40f..60f,
+            steps = 19,
+            colors = SliderDefaults.colors(
+                thumbColor = watirBlue,
+                activeTrackColor = watirBlue,
+                inactiveTrackColor = watirBlue.copy(alpha = 0.3f)
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 48.dp)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // --- D-PAD: STRZAŁKI STERUJĄCE SERWAMI ---
         Column(
@@ -175,6 +209,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         ) {
             Button(
                 onClick = {
+                    watirViewModel.triggerPump(power = pumpPower.toInt(), duration = 3000)
                 },
                 modifier = Modifier
                     .weight(0.4f)
