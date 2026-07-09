@@ -63,4 +63,4 @@ local.properties
 # POPRAWKA #2: Pliki .env z hasłami — nigdy nie commitować do repo!
 # Skopiuj backend/.env.example i uzupełnij ręcznie.
 .env
-backend/.env
+backend/.env.venv/

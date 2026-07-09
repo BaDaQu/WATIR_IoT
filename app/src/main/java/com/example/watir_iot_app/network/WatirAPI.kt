@@ -1,5 +1,6 @@
 package com.example.watir_iot_app.network
 
+import com.example.watir_iot_app.data.model.DirectionRequest
 import com.example.watir_iot_app.data.model.MoveRequest
 import com.example.watir_iot_app.data.model.PlantProfileApplyResponse
 import com.example.watir_iot_app.data.model.PlantProfileListResponse
@@ -19,6 +20,9 @@ interface WatirAPI {
 
     @POST("api/move")
     suspend fun sendMove(@Body request: MoveRequest)
+
+    @POST("api/move")
+    suspend fun sendDirection(@Body request: DirectionRequest)
 
     @GET("api/plants")
     suspend fun getPlants(): PlantProfileListResponse

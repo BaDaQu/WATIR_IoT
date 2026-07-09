@@ -3,6 +3,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.State
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.watir_iot_app.data.model.DirectionRequest
 import com.example.watir_iot_app.data.model.MoveRequest
 import com.example.watir_iot_app.data.model.TelemetryHistoryResponse
 import com.example.watir_iot_app.network.APIClients
@@ -12,7 +13,6 @@ import com.example.watir_iot_app.data.model.PlantProfileRequest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 class WatirViewModel : ViewModel(){
@@ -34,49 +34,28 @@ class WatirViewModel : ViewModel(){
     private var currentX = 90
     private var currentY = 90
 
-    private var joystickDeltaX = 0f
-    private var joystickDeltaY = 0f
+    // Krok serwa w stopniach (identyczny jak w firmware)
+    private val servoStep = 10
 
-    private var joystickJob: Job? = null
-
-    fun onJoystickMoved(xPercent: Float, yPercent: Float) {
-        joystickDeltaX = xPercent
-        joystickDeltaY = yPercent
-
-        if (joystickJob == null || !joystickJob!!.isActive) {
-            startJoystickLoop()
+    // Sterowanie strzałkami — każde kliknięcie = jeden krok o 5°
+    fun moveServo(direction: String) {
+        when (direction) {
+            "lewo"  -> currentX = (currentX + servoStep).coerceIn(0, 180)
+            "prawo" -> currentX = (currentX - servoStep).coerceIn(0, 180)
+            "gora"  -> currentY = (currentY - servoStep).coerceIn(0, 180)
+            "dol"   -> currentY = (currentY + servoStep).coerceIn(0, 180)
         }
-    }
 
-    fun onJoystickStopped() {
-        joystickDeltaX = 0f
-        joystickDeltaY = 0f
-        joystickJob?.cancel()
-    }
+        val axis = if (direction == "lewo" || direction == "prawo") "X" else "Y"
+        val value = if (axis == "X") currentX else currentY
 
-    private fun startJoystickLoop() {
-        joystickJob = viewModelScope.launch {
-            while (isActive) {
-                var changed = false
-
-                if (Math.abs(joystickDeltaX) > 0.2f) {
-                    val step = if (joystickDeltaX > 0) -2 else 2
-                    currentX = (currentX + step).coerceIn(0, 180)
-                    changed = true
+        watirAPI?.let { api ->
+            viewModelScope.launch {
+                try {
+                    api.sendMove(MoveRequest(axis = axis, value = value))
+                } catch (e: Exception) {
+                    println("Failed to send move: ${e.message}")
                 }
-
-                if (Math.abs(joystickDeltaY) > 0.2f) {
-                    val step = if (joystickDeltaY > 0) 2 else -2
-                    currentY = (currentY + step).coerceIn(0, 180)
-                    changed = true
-                }
-
-                if (changed) {
-                    sendMove("X", currentX)
-                    sendMove("Y", currentY)
-                }
-
-                delay(50)
             }
         }
     }
