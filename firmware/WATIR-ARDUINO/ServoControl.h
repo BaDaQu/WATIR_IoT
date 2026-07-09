@@ -20,8 +20,7 @@ int pobierzKierunekJoysticka();
 int pobierzPozycjeSerwaX();
 int pobierzPozycjeSerwaY();
 void uzyjSerw(bool wlacz);
-void zapiszPozycje(int roslina);
-void ustawNadRoslina(int roslina);
+void ustawNadRoslina(int roslina, int pPan, int pTilt);
 void powrotDoBazy();
 void ustawPozycjeSerwaWiFi(int x, int y);
 

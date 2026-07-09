@@ -16,11 +16,18 @@
 
 bool konfigurujCzujniki();
 int zmierzDystans();
-int zmierzWilgotnoscGleby1(); 
-int zmierzWilgotnoscGleby2(); 
+int zmierzWilgotnoscGleby(int pin);
 float zmierzTemperature();
 float zmierzWilgotnoscPowietrza();
 
 extern bool bmeOK;
+
+// Flagi i zmienne globalne dla trybu Hardware-in-the-Loop (HIL)
+// Pozwalają na emulację odczytów czujników przez port Serial.
+extern bool mockActive;
+extern int mockG1;
+extern int mockG2;
+extern float mockTemp;
+extern int mockDist;
 
 #endif

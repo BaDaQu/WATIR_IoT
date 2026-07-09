@@ -9,8 +9,8 @@
 //
 // Podłączenie L298N:
 //   ENA → Pin 3  (PWM — regulacja mocy 0-100%)
-//   IN1 → Pin 4  (kierunek +)
-//   IN2 → Pin 5  (kierunek -)
+//   IN1 → Pin 5  (kierunek +)
+//   IN2 → Pin 4  (kierunek -)
 //   OUT1 → pompa (+)
 //   OUT2 → pompa (-)
 //
@@ -41,14 +41,17 @@ const int progWilgotnosci = 35; // Procent, poniżej którego aktywuje się podl
 // UWAGA: Zasilacz 3A jest dzielony między L298N i przetwornicę 5V.
 // Przy 100% pompa + reszta układu ≈ 3A → ryzyko brownoutu!
 // Bezpieczny zakres: 30–70% (zostawia zapas dla Arduino/serw).
-static int mocPompy = 70;  // Domyślnie 50% — bezpieczne dla zasilacza 3A
+static int mocPompy = 70;  // Domyślnie 70% — bezpieczne dla zasilacza 3A
 
 // =============================================
 // KONWERSJA PROCENT → PWM (0–255)
 // =============================================
 static int procentNaPWM(int procent) {
   procent = constrain(procent, 0, 100);
-  return map(procent, 0, 100, 0, 255);
+  // Ograniczenie sprzętowe na poziomie 70% rzeczywistego cyklu pracy PWM.
+  // Celem jest ochrona współdzielonego zasilacza 12V/3A przed wystąpieniem spadku napięcia (brownout)
+  // spowodowanego nagłym poborem prądu przez silnik.
+  return map(procent, 0, 100, 0, 178);
 }
 
 // =============================================
@@ -100,29 +103,4 @@ void podlej() {
   ustawPompe(true);   // Włącz pompę z aktualną mocą
   delay(3000);        // Pompuj wodę przez 3 sekundy
   ustawPompe(false);  // Wyłącz pompę
-}
-
-// Inteligentna logika dbająca o rośliny
-void logikaPodlewania(int dystans, int g1, int g2) {
-  // Zabezpieczenie przed przepaleniem pompy (Fail-Safe)
-  if (dystans >= 12) return;
-
-  // Sprawdzanie i podlewanie Rośliny nr 1
-  if (g1 < progWilgotnosci) {
-    ustawNadRoslina(1); // Wyceluj ramię w pierwszą doniczkę
-    ustawPompe(true);
-    delay(3000);
-    ustawPompe(false);
-    delay(2000); // Odczekaj 2s na wsiąknięcie wody
-  }
-
-  // Sprawdzanie i podlewanie Rośliny nr 2
-  if (g2 < progWilgotnosci) {
-    ustawNadRoslina(2); // Wyceluj ramię w drugą doniczkę
-    ustawPompe(true);
-    delay(3000);
-    ustawPompe(false);
-    delay(2000); // Odczekaj 2s na wsiąknięcie wody
-    powrotDoBazy();
-  }
 }

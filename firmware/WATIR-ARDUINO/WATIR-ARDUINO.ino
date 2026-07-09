@@ -8,13 +8,10 @@
 // - WiFi + HTTP Server (/api/move, /api/config, /api/water)
 // - Czujniki (BME280, HC-SR04, wilgotność gleby)
 // - Serwa (ramię robota + joystick fizyczny)
-// - Pompę wodną (sterownik L298N, ENA=3, IN1=4, IN2=5)
+// - Pompę wodną (sterownik L298N, ENA=3, IN1=5, IN2=4)
 // - Wyświetlacz LCD I2C
 // - Cykliczną telemetrię do backendu Node.js
 //
-
-// >>> USUŃ TĘ LINIĘ ABY WYŁĄCZYĆ TEST POMPY <<<
-#define TEST_POMPY
 
 #include <WiFiS3.h>
 #include <ArduinoJson.h>
@@ -146,15 +143,30 @@ bool trybAutomatyczny  = false;   // Ustawiany przez menu na LCD
 bool systemZablokowany = false;   // Fail-Safe — brak wody
 bool pompAktywna       = false;   // Flaga dla telemetrii
 
+#include <EEPROM.h>
+
 // =============================================
 // KONFIGURACJA PROFILU ROŚLINY
-// (aktualizowana przez POST /api/config)
+// (zapisywana i odczytywana z EEPROM)
 // =============================================
-int           profilProgWilgotnosci  = 35;      // moisture_threshold (%)
-bool          profilAutoWatering     = true;     // auto_watering
-unsigned long profilCheckIntervalMs  = 10000;    // check_interval_ms
-int           profilPan              = 90;       // pan  (pozycja serwa X)
-int           profilTilt             = 90;       // tilt (pozycja serwa Y)
+struct WatirConfig {
+  uint32_t magic;
+  int p1_moisture;
+  int p1_sensor;
+  int p1_pan;
+  int p1_tilt;
+  int p2_moisture;
+  int p2_sensor;
+  int p2_pan;
+  int p2_tilt;
+  int min_temp_block;
+  int max_temp_force;
+  int pump_power;
+  bool auto_watering;
+  unsigned long check_interval_ms;
+};
+
+WatirConfig watirConfig;
 
 // =============================================
 // TIMERY
@@ -174,6 +186,7 @@ const int pinPrzycisk = 2;
 // DEKLARACJE FUNKCJI
 // =============================================
 void obsluzKlientaHTTP();
+void obsluzKlientaSerial();
 void handleMove(WiFiClient& client, String& body);
 void handleConfig(WiFiClient& client, String& body);
 void handleWater(WiFiClient& client);
@@ -247,6 +260,26 @@ void setup() {
   konfigurujWyswietlacz();
   konfigurujSerwa();
 
+  EEPROM.get(0, watirConfig);
+  if (watirConfig.magic != 0x12345678) {
+    watirConfig.magic = 0x12345678;
+    watirConfig.p1_moisture = 35;
+    watirConfig.p1_sensor = A1;
+    watirConfig.p1_pan = 90;
+    watirConfig.p1_tilt = 90;
+    watirConfig.p2_moisture = 35;
+    watirConfig.p2_sensor = A0;
+    watirConfig.p2_pan = 90;
+    watirConfig.p2_tilt = 90;
+    watirConfig.min_temp_block = 5;
+    watirConfig.max_temp_force = 35;
+    watirConfig.pump_power = 70;
+    watirConfig.auto_watering = true;
+    watirConfig.check_interval_ms = 10000;
+    EEPROM.put(0, watirConfig);
+  }
+  ustawMocPompy(watirConfig.pump_power);
+
   // --- Łączenie z WiFi (do 60 sekund) ---
   lcd.clear();
   lcd.print("Laczenie WiFi...");
@@ -284,7 +317,7 @@ void setup() {
     Serial.println();
     Serial.println("[WiFi] Blad polaczenia! Przejscie w tryb reczny.");
 
-    trybAutomatyczny = false;
+    trybAutomatyczny = true; // Zabezpieczenie przed zablokowaniem automatyki w przypadku braku połączenia WiFi
 
     lcd.clear();
     lcd.print("Brak WiFi!");
@@ -303,34 +336,6 @@ void setup() {
   Serial.println("[HTTP] Serwer nasluchuje na porcie 80");
 
   lcd.clear();
-
-  // =============================================
-  // >>> TEST POMPY — usuń/zakomentuj #define TEST_POMPY aby wyłączyć <<<
-  // =============================================
-  #ifdef TEST_POMPY
-  {
-    Serial.println("[TEST] === TEST POMPY START ===");
-    Serial.print("[TEST] Moc: "); Serial.print(pobierzMocPompy()); Serial.println("%");
-
-    lcd.setCursor(0, 0);
-    lcd.print("TEST POMPY");
-    lcd.setCursor(0, 1);
-    lcd.print("Moc: "); lcd.print(pobierzMocPompy()); lcd.print("%");
-
-    delay(2000);  // 2s na przygotowanie
-
-    Serial.println("[TEST] Wlaczam pompe na 3 sekundy...");
-    lcd.setCursor(0, 1);
-    lcd.print("POMPA ON!       ");
-    podlej();     // 3 sekundy pompowania
-
-    Serial.println("[TEST] === TEST POMPY KONIEC ===");
-    lcd.clear();
-    lcd.print("Test OK!");
-    delay(1500);
-    lcd.clear();
-  }
-  #endif
 }
 
 // =============================================
@@ -364,17 +369,31 @@ void loop() {
   // --- 2. OBSŁUGA ŻĄDAŃ HTTP (Z APLIKACJI / BACKENDU) ---
   obsluzKlientaHTTP();
 
+  // --- 2B. OBSŁUGA KONFIGURACJI PRZEZ SERIAL (OFFLINE) ---
+  obsluzKlientaSerial();
+
   // --- 3. RUCH RAMIENIA — JOYSTICK FIZYCZNY + KIERUNEK WiFi ---
   // Serwa nigdy nie blokujemy — blokada "brak wody" dotyczy tylko pompy
   aktualizujSerwa(false);
 
-  // --- 4. ODCZYT CZUJNIKÓW I AKTUALIZACJA LCD (co 1 sekundę) ---
+  // --- 4. TELEMETRIA SERIAL (na żywo, co 200 ms) ---
+  static unsigned long ostatniaTelemetriaSerial = 0;
+  if (millis() - ostatniaTelemetriaSerial >= 200) {
+    ostatniaTelemetriaSerial = millis();
+    Serial.print("{\"telemetry\": {\"pan\": ");
+    Serial.print(pobierzPozycjeSerwaX());
+    Serial.print(", \"tilt\": ");
+    Serial.print(pobierzPozycjeSerwaY());
+    Serial.println("}}");
+  }
+
+  // --- 5. ODCZYT CZUJNIKÓW I AKTUALIZACJA LCD (co 1 sekundę) ---
   if (millis() - ostatniOdczyt >= 1000) {
     ostatniOdczyt = millis();
 
     int dystansWody = zmierzDystans();
-    int gleba1 = zmierzWilgotnoscGleby1();
-    int gleba2 = zmierzWilgotnoscGleby2();
+    int gleba1 = zmierzWilgotnoscGleby(watirConfig.p1_sensor);
+    int gleba2 = zmierzWilgotnoscGleby(watirConfig.p2_sensor);
 
     // Fail-Safe — brak wody
     if (dystansWody >= 12) {
@@ -401,29 +420,35 @@ void loop() {
   }
 
   // --- 5. TRYB AUTOMATYCZNY — PODLEWANIE Z PROFILU ---
-  if (trybAutomatyczny && profilAutoWatering && !systemZablokowany) {
-    if (millis() - ostatnieSprawdzeniePodlewania >= profilCheckIntervalMs) {
+  if (watirConfig.auto_watering && !systemZablokowany) {
+    if (millis() - ostatnieSprawdzeniePodlewania >= watirConfig.check_interval_ms) {
       ostatnieSprawdzeniePodlewania = millis();
 
       int dystansWody = zmierzDystans();
-      int gleba1 = zmierzWilgotnoscGleby1();
-      int gleba2 = zmierzWilgotnoscGleby2();
+      float temp = zmierzTemperature();
+      int gleba1 = zmierzWilgotnoscGleby(watirConfig.p1_sensor);
+      int gleba2 = zmierzWilgotnoscGleby(watirConfig.p2_sensor);
 
       if (dystansWody < 12) {
-        if (gleba1 < profilProgWilgotnosci || gleba2 < profilProgWilgotnosci) {
-          Serial.println("[AUTO] Wilgotnosc ponizej progu — podlewam!");
-
-          // Przesuń ramię na pozycję z profilu rośliny
-          uzyjSerw(true);
-          ustawPozycjeSerwaWiFi(profilPan, profilTilt);
-          delay(1000); // Czekaj aż ramię dojedzie na pozycję
-
-          // Podlej
-          pompAktywna = true;
-          podlej();
-          pompAktywna = false;
-
-          delay(1000);
+        if (temp < watirConfig.min_temp_block) {
+          Serial.println("[AUTO] Za zimno! Blokada podlewania.");
+        } else {
+          bool force = (temp > watirConfig.max_temp_force);
+          
+          if (force || gleba1 < watirConfig.p1_moisture) {
+            Serial.println("[AUTO] Podlewam Rosline 1!");
+            ustawNadRoslina(1, watirConfig.p1_pan, watirConfig.p1_tilt);
+            pompAktywna = true; podlej(); pompAktywna = false;
+            delay(1000);
+          }
+          
+          if (force || gleba2 < watirConfig.p2_moisture) {
+            Serial.println("[AUTO] Podlewam Rosline 2!");
+            ustawNadRoslina(2, watirConfig.p2_pan, watirConfig.p2_tilt);
+            pompAktywna = true; podlej(); pompAktywna = false;
+            delay(1000);
+          }
+          
           powrotDoBazy();
         }
       }
@@ -531,6 +556,96 @@ void obsluzKlientaHTTP() {
 }
 
 // =============================================
+// OBSŁUGA SERIAL — KONFIGURACJA OFFLINE
+// Oczekuje JSON-a o strukturze takiej samej jak /api/config:
+// {"config": {"moisture_threshold": 35, ...}}
+// =============================================
+void obsluzKlientaSerial() {
+  if (Serial.available() > 0) {
+    String linia = Serial.readStringUntil('\n');
+    linia.trim();
+
+    if (linia.length() > 0 && linia.startsWith("{")) {
+      StaticJsonDocument<256> doc;
+      DeserializationError err = deserializeJson(doc, linia);
+
+      if (err) {
+        Serial.println("{\"status\":\"error\",\"message\":\"Nieprawidlowy JSON\"}");
+        return;
+      }
+
+      JsonObject mockObj = doc["mock"];
+      if (!mockObj.isNull()) {
+        if (mockObj.containsKey("active")) mockActive = mockObj["active"].as<bool>();
+        if (mockObj.containsKey("g1")) mockG1 = mockObj["g1"].as<int>();
+        if (mockObj.containsKey("g2")) mockG2 = mockObj["g2"].as<int>();
+        if (mockObj.containsKey("temp")) mockTemp = mockObj["temp"].as<float>();
+        if (mockObj.containsKey("water_level")) mockDist = mockObj["water_level"].as<int>();
+        
+        Serial.println("{\"status\":\"success\",\"message\":\"Mock aktywowany/zaktualizowany\"}");
+        return;
+      }
+
+      if (doc.containsKey("debug")) {
+        Serial.print("{\"DEBUG\": {\"p1_m\": "); Serial.print(watirConfig.p1_moisture);
+        Serial.print(", \"p1_sensor\": "); Serial.print(watirConfig.p1_sensor);
+        Serial.print(", \"g1\": "); Serial.print(zmierzWilgotnoscGleby(watirConfig.p1_sensor));
+        Serial.print(", \"auto_w\": "); Serial.print(watirConfig.auto_watering);
+        Serial.print(", \"zab\": "); Serial.print(systemZablokowany);
+        Serial.print(", \"mock\": "); Serial.print(mockActive);
+        Serial.println("}}");
+        return;
+      }
+
+      JsonObject config = doc["config"];
+      if (config.isNull()) {
+        Serial.println("{\"status\":\"error\",\"message\":\"Brak obiektu config lub mock\"}");
+        return;
+      }
+
+      // Aktualizuj parametry profilu globalnego
+      if (config.containsKey("auto_watering")) watirConfig.auto_watering = config["auto_watering"].as<bool>();
+      if (config.containsKey("check_interval_ms")) watirConfig.check_interval_ms = config["check_interval_ms"].as<unsigned long>();
+      if (config.containsKey("pump_power")) {
+        watirConfig.pump_power = config["pump_power"].as<int>();
+        ustawMocPompy(watirConfig.pump_power);
+      }
+      if (config.containsKey("min_temp_block")) watirConfig.min_temp_block = config["min_temp_block"].as<int>();
+      if (config.containsKey("max_temp_force")) watirConfig.max_temp_force = config["max_temp_force"].as<int>();
+
+      if (config.containsKey("target_plant")) {
+        int tPlant = config["target_plant"].as<int>();
+        if (tPlant == 1) {
+          if (config.containsKey("moisture_threshold")) watirConfig.p1_moisture = config["moisture_threshold"].as<int>();
+          if (config.containsKey("sensor")) watirConfig.p1_sensor = config["sensor"].as<int>();
+          if (config.containsKey("pan")) watirConfig.p1_pan = constrain(config["pan"].as<int>(), 0, 180);
+          if (config.containsKey("tilt")) watirConfig.p1_tilt = constrain(config["tilt"].as<int>(), 0, 180);
+          ustawPozycjeSerwaWiFi(watirConfig.p1_pan, watirConfig.p1_tilt);
+        } else if (tPlant == 2) {
+          if (config.containsKey("moisture_threshold")) watirConfig.p2_moisture = config["moisture_threshold"].as<int>();
+          if (config.containsKey("sensor")) watirConfig.p2_sensor = config["sensor"].as<int>();
+          if (config.containsKey("pan")) watirConfig.p2_pan = constrain(config["pan"].as<int>(), 0, 180);
+          if (config.containsKey("tilt")) watirConfig.p2_tilt = constrain(config["tilt"].as<int>(), 0, 180);
+          ustawPozycjeSerwaWiFi(watirConfig.p2_pan, watirConfig.p2_tilt);
+        }
+      }
+      
+      EEPROM.put(0, watirConfig);
+
+      // Informacja na LCD
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Serial OK!");
+      lcd.setCursor(0, 1);
+      lcd.print("Zapisano EEPROM.");
+      
+      // Wyślij potwierdzenie po Serialu (dla GUI w Pythonie)
+      Serial.println("{\"status\":\"success\",\"message\":\"Zapisano do EEPROM\"}");
+    }
+  }
+}
+
+// =============================================
 // HANDLER: POST /api/move
 // Tryb ciągły (joystick w aplikacji):
 //   Payload: {"direction":"lewo"}
@@ -629,46 +744,16 @@ void handleConfig(WiFiClient& client, String& body) {
     return;
   }
 
-  // Aktualizuj parametry profilu
-  if (config.containsKey("moisture_threshold"))
-    profilProgWilgotnosci = config["moisture_threshold"].as<int>();
-
-  if (config.containsKey("auto_watering"))
-    profilAutoWatering = config["auto_watering"].as<bool>();
-
-  if (config.containsKey("check_interval_ms"))
-    profilCheckIntervalMs = config["check_interval_ms"].as<unsigned long>();
-
-  if (config.containsKey("pan"))
-    profilPan = constrain(config["pan"].as<int>(), 0, 180);
-
-  if (config.containsKey("tilt"))
-    profilTilt = constrain(config["tilt"].as<int>(), 0, 180);
-
-  if (config.containsKey("pump_power"))
-    ustawMocPompy(config["pump_power"].as<int>());
-
-  // Logowanie na Serial Monitor
-  Serial.println("[CONFIG] Profil zaaplikowany:");
-  Serial.print("  moisture_threshold: "); Serial.println(profilProgWilgotnosci);
-  Serial.print("  auto_watering:      "); Serial.println(profilAutoWatering ? "TAK" : "NIE");
-  Serial.print("  check_interval_ms:  "); Serial.println(profilCheckIntervalMs);
-  Serial.print("  pump_power:         "); Serial.print(pobierzMocPompy()); Serial.println("%");
-  Serial.print("  pan:                "); Serial.println(profilPan);
-  Serial.print("  tilt:               "); Serial.println(profilTilt);
-
-  // Przesuń serwa na pozycję z profilu
-  ustawPozycjeSerwaWiFi(profilPan, profilTilt);
-
-  // Informacja na LCD
+  // (Uproszczone z racji przejścia na Serial Config)
+  if (config.containsKey("pump_power")) {
+    watirConfig.pump_power = config["pump_power"].as<int>();
+    ustawMocPompy(watirConfig.pump_power);
+    EEPROM.put(0, watirConfig);
+  }
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Profil OK!");
-  lcd.setCursor(0, 1);
-  lcd.print("P:"); lcd.print(profilPan);
-  lcd.print(" T:");  lcd.print(profilTilt);
-  lcd.print(" W:");  lcd.print(profilProgWilgotnosci);
-  delay(1500);
+  lcd.print("HTTP Config OK!");
+  delay(1000);
   lcd.clear();
 
   wyslijOdpowiedzJSON(client, 200,
@@ -800,7 +885,8 @@ void wyslijTelemetrie() {
   JsonObject sensors = doc.createNestedObject("sensors");
   sensors["temp"]           = zmierzTemperature();
   sensors["humidity"]       = (int)zmierzWilgotnoscPowietrza();
-  sensors["soil_moisture"]  = zmierzWilgotnoscGleby1();
+  sensors["soil_moisture_1"] = zmierzWilgotnoscGleby(watirConfig.p1_sensor);
+  sensors["soil_moisture_2"] = zmierzWilgotnoscGleby(watirConfig.p2_sensor);
   sensors["water_level_cm"] = zmierzDystans();
 
   JsonObject status = doc.createNestedObject("status");

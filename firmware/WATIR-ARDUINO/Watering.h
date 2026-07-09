@@ -21,7 +21,6 @@
 void konfigurujPodlewanie();
 void podlej();
 void ustawPompe(bool wlacz);       // Bezpośrednie włącz/wyłącz pompę
-void logikaPodlewania(int dystans, int g1, int g2);
 void ustawMocPompy(int procent);   // Ustawia moc 0–100%
 int  pobierzMocPompy();            // Zwraca aktualną moc 0–100%
 

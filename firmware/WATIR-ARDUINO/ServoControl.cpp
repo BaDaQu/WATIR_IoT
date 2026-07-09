@@ -10,7 +10,7 @@
 
 #include "ServoControl.h"
 #include <Servo.h>
-#include <EEPROM.h>
+// (Usunięto EEPROM.h - cała konfiguracja zapisywana globalnie w WATIR-ARDUINO.ino)
 
 // Piny dla ramienia robotycznego
 const int pinSerwo1 = 9; 
@@ -31,11 +31,8 @@ const int martwaStrefaMax = 600;
 // Krok serwa w stopniach na tick (większy = szybszy ruch)
 const int krokSerwa = 5;
 
-// Adresy komórek pamięci EEPROM dla dwóch roślin
-const int ADRES_G1_X = 0;
-const int ADRES_G1_Y = 1;
-const int ADRES_G2_X = 2;
-const int ADRES_G2_Y = 3;
+// Zmienne pozycji zostały przeniesione do głównego obiektu konfiguracji w WATIR-ARDUINO.ino,
+// dlatego usuwamy lokalne stałe adresów EEPROM.
 
 // Włączanie lub usypianie serw (oszczędność prądu i redukcja drgań)
 void uzyjSerw(bool wlacz) {
@@ -58,26 +55,13 @@ void konfigurujSerwa() {
 }
 
 // Zapis aktualnych kątów ramienia do nieulotnej pamięci
-void zapiszPozycje(int roslina) {
-    if (roslina == 1) {
-        EEPROM.update(ADRES_G1_X, aktualnaPozycjaX);
-        EEPROM.update(ADRES_G1_Y, aktualnaPozycjaY);
-    } else {
-        EEPROM.update(ADRES_G2_X, aktualnaPozycjaX);
-        EEPROM.update(ADRES_G2_Y, aktualnaPozycjaY);
-    }
-}
+// Zapis odbywa się teraz z poziomu WATIR-ARDUINO.ino, po zaktualizowaniu struktury watirConfig
 
-// Odczyt zapisanych pozycji z pamięci i nakierowanie dyszy
-void ustawNadRoslina(int roslina) {
+void ustawNadRoslina(int roslina, int pPan, int pTilt) {
     uzyjSerw(true);
-    if (roslina == 1) {
-        aktualnaPozycjaX = EEPROM.read(ADRES_G1_X);
-        aktualnaPozycjaY = EEPROM.read(ADRES_G1_Y);
-    } else {
-        aktualnaPozycjaX = EEPROM.read(ADRES_G2_X);
-        aktualnaPozycjaY = EEPROM.read(ADRES_G2_Y);
-    }
+    aktualnaPozycjaX = pPan;
+    aktualnaPozycjaY = pTilt;
+
     serwoX.write(aktualnaPozycjaX);
     serwoY.write(aktualnaPozycjaY);
     delay(1000); // Odczekaj, aż ramię fizycznie dojedzie na pozycję
