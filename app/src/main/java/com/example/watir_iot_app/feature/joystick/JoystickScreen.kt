@@ -27,10 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.watir_iot_app.R
 import com.example.watir_iot_app.data.model.PlantProfile
 import com.example.watir_iot_app.feature.joystick.components.VirtualJoystick
 import com.example.watir_iot_app.viewmodel.WatirViewModel
@@ -45,10 +46,6 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
     var expanded by remember { mutableStateOf(false) }
     var selectedPlant by remember { mutableStateOf<PlantProfile?>(null) }
 
-    val watirNavy = Color(0xFF102A43)
-    val watirBlue = Color(0xFF2EB4E6)
-    val watirGreen = Color(0xFF549E39)
-
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -56,10 +53,10 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
     ) {
 
         Text(
-            text = "Sterowanie Ręczne",
+            text = stringResource(R.string.joystick_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = watirNavy
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -76,9 +73,9 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         Spacer(modifier = Modifier.height(48.dp))
 
         Text(
-            text = "Wybierz roślinę do kalibracji",
+            text = stringResource(R.string.joystick_calibrate_hint),
             style = MaterialTheme.typography.titleMedium,
-            color = watirNavy
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -91,17 +88,13 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                 .padding(horizontal = 24.dp)
         ) {
             OutlinedTextField(
-                value = selectedPlant?.name ?: "Wybierz profil",
+                value = selectedPlant?.name ?: stringResource(R.string.settings_select_profile),
                 onValueChange = {},
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier
                     .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true)
                     .fillMaxWidth(),
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
-                    focusedBorderColor = watirBlue,
-                    unfocusedBorderColor = watirNavy.copy(alpha = 0.5f)
-                ),
                 shape = MaterialTheme.shapes.medium
             )
 
@@ -111,7 +104,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             ) {
                 plantProfiles.forEach { plant ->
                     DropdownMenuItem(
-                        text = { Text(plant.name, color = watirNavy) },
+                        text = { Text(plant.name) },
                         onClick = {
                             selectedPlant = plant
                             expanded = false
@@ -130,15 +123,17 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Button(
-                onClick = {
-                },
+                onClick = { /* Podlewanie logic */ },
                 modifier = Modifier
                     .weight(0.4f)
                     .height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = watirBlue),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                ),
                 shape = MaterialTheme.shapes.medium
             ) {
-                Text("Podlej", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.joystick_water_button), fontWeight = FontWeight.Bold)
             }
 
             Button(
@@ -156,12 +151,14 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     .weight(0.6f)
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = watirGreen,
-                    disabledContainerColor = Color.LightGray
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                 ),
                 shape = MaterialTheme.shapes.medium
             ) {
-                Text("Zapisz pozycję", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.joystick_save_pos_button), fontWeight = FontWeight.Bold)
             }
         }
     }
