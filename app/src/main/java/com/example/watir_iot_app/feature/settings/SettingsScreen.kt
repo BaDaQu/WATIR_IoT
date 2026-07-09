@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -15,15 +16,19 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,8 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.watir_iot_app.R
 import com.example.watir_iot_app.data.model.PlantProfile
 import com.example.watir_iot_app.viewmodel.WatirViewModel
 
@@ -58,6 +65,9 @@ fun SettingsScreen(viewModel: WatirViewModel) {
     var thresholdInput by remember { mutableStateOf("") }
     var intervalInput by remember { mutableStateOf("") }
 
+    val isDarkMode by viewModel.isDarkMode
+    val currentLang by viewModel.language
+
     val watirNavy = Color(0xFF102A43)
     val watirBlue = Color(0xFF2EB4E6)
     val watirGreen = Color(0xFF549E39)
@@ -66,34 +76,38 @@ fun SettingsScreen(viewModel: WatirViewModel) {
     if (showDialog) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text(if (isEditing) "Edytuj profil" else "Nowy profil", color = watirNavy, fontWeight = FontWeight.Bold) },
+            title = { 
+                Text(
+                    if (isEditing) stringResource(R.string.settings_edit_profile) else stringResource(R.string.settings_new_profile_dialog), 
+                    style = MaterialTheme.typography.titleLarge
+                ) 
+            },
             text = {
                 Column {
                     OutlinedTextField(
                         value = nameInput,
                         onValueChange = { nameInput = it },
-                        label = { Text("Nazwa") },
+                        label = { Text(stringResource(R.string.settings_name_label)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = thresholdInput,
                         onValueChange = { thresholdInput = it },
-                        label = { Text("Próg wilgotności (%)") },
+                        label = { Text(stringResource(R.string.settings_moisture_label)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = intervalInput,
                         onValueChange = { intervalInput = it },
-                        label = { Text("Interwał sprawdzania (ms)") },
+                        label = { Text(stringResource(R.string.settings_interval_label)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
                 TextButton(
-                    colors = ButtonDefaults.textButtonColors(contentColor = watirNavy),
                     onClick = {
                         val threshold = thresholdInput.toIntOrNull() ?: 50
                         val interval = intervalInput.toIntOrNull() ?: 10000
@@ -129,26 +143,72 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                         }
                     }
                 ) {
-                    Text("Zapisz", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.settings_save), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color.Gray),
                     onClick = { showDialog = false }
                 ) {
-                    Text("Anuluj")
+                    Text(stringResource(R.string.settings_cancel))
                 }
             }
         )
     }
 
     Column(modifier = Modifier.padding(16.dp)) {
+        
+        Text(text = stringResource(R.string.nav_settings), style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Dark Mode Toggle
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(stringResource(R.string.settings_dark_mode), style = MaterialTheme.typography.bodyLarge)
+            Switch(
+                checked = isDarkMode,
+                onCheckedChange = { viewModel.toggleDarkMode(it) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Language Selector
+        Text(stringResource(R.string.settings_language), style = MaterialTheme.typography.bodyLarge)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { viewModel.setLanguage("pl") },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (currentLang == "pl") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (currentLang == "pl") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(stringResource(R.string.lang_pl))
+            }
+            Button(
+                onClick = { viewModel.setLanguage("en") },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (currentLang == "en") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (currentLang == "en") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(stringResource(R.string.lang_en))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(24.dp))
 
         OutlinedTextField(
             value = ipInput,
             onValueChange = { ipInput = it },
-            label = { Text("Server IP") },
+            label = { Text(stringResource(R.string.settings_server_ip)) },
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium
         )
@@ -158,16 +218,15 @@ fun SettingsScreen(viewModel: WatirViewModel) {
         Button(
             onClick = { viewModel.connectToServer(ipInput) },
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = watirNavy),
             shape = MaterialTheme.shapes.medium
         ) {
-            Text("Connect", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.settings_connect), fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = if (viewModel.isConnected.value) "Status: Connected" else "Status: Disconnected",
+            text = if (viewModel.isConnected.value) stringResource(R.string.settings_status_connected) else stringResource(R.string.settings_status_disconnected),
             color = if (viewModel.isConnected.value) watirGreen else watirRed,
             fontWeight = FontWeight.Bold
         )
@@ -179,7 +238,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Profile Roślin", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = watirNavy)
+            Text(stringResource(R.string.settings_plant_profiles), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             IconButton(onClick = {
                 isEditing = false
                 nameInput = ""
@@ -187,7 +246,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                 intervalInput = "10000"
                 showDialog = true
             }) {
-                Icon(Icons.Default.Add, contentDescription = "Dodaj profil", tint = watirNavy)
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.settings_add_profile))
             }
         }
 
@@ -200,17 +259,13 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                 modifier = Modifier.weight(1f)
             ) {
                 OutlinedTextField(
-                    value = selectedPlant?.name ?: "Wybierz profil",
+                    value = selectedPlant?.name ?: stringResource(R.string.settings_select_profile),
                     onValueChange = {},
                     readOnly = true,
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                     },
                     modifier = Modifier.menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true).fillMaxWidth(),
-                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
-                        focusedBorderColor = watirBlue,
-                        unfocusedBorderColor = watirNavy.copy(alpha = 0.5f)
-                    ),
                     shape = MaterialTheme.shapes.medium
                 )
 
@@ -220,7 +275,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                 ) {
                     plants.forEach { plant ->
                         DropdownMenuItem(
-                            text = { Text(plant.name, color = watirNavy) },
+                            text = { Text(plant.name) },
                             onClick = {
                                 selectedPlant = plant
                                 expanded = false
@@ -241,7 +296,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                         showDialog = true
                     }
                 }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edytuj profil", tint = watirBlue)
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.settings_edit_profile), tint = watirBlue)
                 }
                 IconButton(onClick = {
                     selectedPlant?.let { plant ->
@@ -255,7 +310,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                         )
                     }
                 }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Usuń profil", tint = watirRed)
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.settings_delete_profile), tint = watirRed)
                 }
             }
         }
@@ -278,10 +333,9 @@ fun SettingsScreen(viewModel: WatirViewModel) {
             },
             enabled = selectedPlant != null,
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = watirNavy),
             shape = MaterialTheme.shapes.medium
         ) {
-            Text("Zastosuj profil na ESP32", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.settings_apply_esp), fontWeight = FontWeight.Bold)
         }
     }
 }
