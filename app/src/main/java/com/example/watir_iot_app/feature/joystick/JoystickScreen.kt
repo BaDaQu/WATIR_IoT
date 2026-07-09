@@ -74,7 +74,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             text = stringResource(R.string.joystick_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = watirNavy
+            color = MaterialTheme.colorScheme.primary
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -125,7 +125,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         Text(
             text = stringResource(R.string.joystick_calibrate_hint),
             style = MaterialTheme.typography.titleMedium,
-            color = watirNavy
+            color = MaterialTheme.colorScheme.primary
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -205,7 +205,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = watirGreen,
-                    disabledContainerColor = Color.LightGray
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
                 shape = MaterialTheme.shapes.medium
             ) {
