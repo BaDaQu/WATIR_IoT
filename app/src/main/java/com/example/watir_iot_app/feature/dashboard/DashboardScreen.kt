@@ -26,7 +26,8 @@ fun DashboardScreen(viewModel: WatirViewModel) {
     val latestData = viewModel.telemetryHistory.value.data.firstOrNull()
 
     val humidityText = latestData?.humidity?.let { "$it%" } ?: "--%"
-    val soilMoistureText = latestData?.soil_moisture?.let { "$it%" } ?: "--%"
+    val soilMoisture1Text = latestData?.soil_moisture_1?.let { "$it%" } ?: "--%"
+    val soilMoisture2Text = latestData?.soil_moisture_2?.let { "$it%" } ?: "--%"
     val tempText = latestData?.temp?.let { "$it°C" } ?: "--°C"
 
     val pumpText = if (latestData?.pump_active == true) "Pracuje" else "Czuwa"
@@ -71,8 +72,15 @@ fun DashboardScreen(viewModel: WatirViewModel) {
             modifier = Modifier.fillMaxWidth()
         )
         SensorCard(
-            title = "Wilgotność gleby",
-            value = soilMoistureText,
+            title = "Wilgotność gleby G1",
+            value = soilMoisture1Text,
+            icon = Icons.Default.Eco,
+            iconTint = watirGreen,
+            modifier = Modifier.fillMaxWidth()
+        )
+        SensorCard(
+            title = "Wilgotność gleby G2",
+            value = soilMoisture2Text,
             icon = Icons.Default.Eco,
             iconTint = watirGreen,
             modifier = Modifier.fillMaxWidth()

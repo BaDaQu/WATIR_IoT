@@ -1,19 +1,21 @@
 // ============================================
 // WATIR IoT — Firmware dla Arduino UNO R4 WiFi
-// Wersja: 2.0 — WiFi wbudowane (bez osobnego ESP)
 // ============================================
 //
-// Arduino R4 WiFi przejmuje rolę zarówno starego
-// Arduino UNO jak i ESP8266 — jeden układ obsługuje:
-// - WiFi + HTTP Server (/api/move, /api/config, /api/water)
-// - Czujniki (BME280, HC-SR04, wilgotność gleby)
-// - Serwa (ramię robota + joystick fizyczny)
-// - Pompę wodną (sterownik L298N, ENA=3, IN1=5, IN2=4)
-// - Wyświetlacz LCD I2C
-// - Cykliczną telemetrię do backendu Node.js
+// Aktualne możliwości i architektura:
+// - Komunikacja: Wbudowane WiFi, UDP Auto-Discovery serwera Node.js
+// - HTTP API: Odbieranie żądań na porcie 80 (/api/move, /api/config, /api/water, /api/pump)
+// - Czujniki: BME280 (I2C), HC-SR04 (Ultrasoniczny), 2x Czujnik wilgotności gleby (Analog)
+// - Sterowanie Ramieniem: 2x Serwomechanizm (Pan/Tilt) + Joystick fizyczny
+// - Sterowanie Pompą: Sterownik L298N (regulacja mocy PWM)
+// - Interfejs Użytkownika: Ekran LCD 16x2 (I2C) z graficznym kreatorem konfiguracji
+// - Tryby działania: ONLINE (telemetria do Node.js, sterowanie z aplikacji) i OFFLINE (autonomiczne)
+// - Pamięć EEPROM: Przechowywanie danych logowania do WiFi
 //
+// =============================================
 
 #include <WiFiS3.h>
+#include <WiFiUdp.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
@@ -22,18 +24,13 @@
 #include "Sensors.h"
 #include "Watering.h"
 #include "DisplayMenu.h"
+#include "Config.h"
 
 // =============================================
-// KONFIGURACJA WiFi
+// KONFIGURACJA BACKENDU (Auto-Discovery)
 // =============================================
-const char* ssid     = "WATIR";
-const char* password = "WATIRINO";
-
-// =============================================
-// KONFIGURACJA BACKENDU (adres serwera API)
-// Zmień na adres IP swojego serwera Node.js
-// =============================================
-const char* backendHost    = "10.101.29.4";
+// Adres IP serwera jest wykrywany automatycznie przy użyciu protokołu UDP.
+String backendHost         = "";
 const int   backendPort    = 3000;
 const char* telemetryPath  = "/api/telemetry";
 const char* deviceId       = "WATIR_01";
@@ -43,6 +40,7 @@ const char* deviceId       = "WATIR_01";
 // =============================================
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 WiFiServer serwer(80);
+WiFiUDP udp; // Instancja dla UDP Auto-Discovery
 ArduinoLEDMatrix matrycaLED;
 
 byte animacjaRosliny[8][8][12] = {
@@ -140,6 +138,7 @@ byte animacjaRosliny[8][8][12] = {
 // ZMIENNE STANU SYSTEMU
 // =============================================
 bool trybAutomatyczny  = false;   // Ustawiany przez menu na LCD
+bool isOfflineMode     = false;   // Prawda jeśli nie połączono z WiFi
 bool systemZablokowany = false;   // Fail-Safe — brak wody
 bool pompAktywna       = false;   // Flaga dla telemetrii
 
@@ -147,24 +146,8 @@ bool pompAktywna       = false;   // Flaga dla telemetrii
 
 // =============================================
 // KONFIGURACJA PROFILU ROŚLINY
-// (zapisywana i odczytywana z EEPROM)
+// (zapisywana i odczytywana z EEPROM - struktura w Config.h)
 // =============================================
-struct WatirConfig {
-  uint32_t magic;
-  int p1_moisture;
-  int p1_sensor;
-  int p1_pan;
-  int p1_tilt;
-  int p2_moisture;
-  int p2_sensor;
-  int p2_pan;
-  int p2_tilt;
-  int min_temp_block;
-  int max_temp_force;
-  int pump_power;
-  bool auto_watering;
-  unsigned long check_interval_ms;
-};
 
 WatirConfig watirConfig;
 
@@ -175,6 +158,7 @@ unsigned long ostatniOdczyt                = 0;
 unsigned long ostatnieKlikniecie           = 0;
 unsigned long ostatniaTelemetria           = 0;
 unsigned long ostatnieSprawdzeniePodlewania = 0;
+unsigned long ostatnieWyszukiwanieUDP      = 0;
 const unsigned long TELEMETRY_INTERVAL     = 30000;  // Co 30 sekund
 
 // =============================================
@@ -186,13 +170,13 @@ const int pinPrzycisk = 2;
 // DEKLARACJE FUNKCJI
 // =============================================
 void obsluzKlientaHTTP();
-void obsluzKlientaSerial();
 void handleMove(WiFiClient& client, String& body);
 void handleConfig(WiFiClient& client, String& body);
 void handleWater(WiFiClient& client);
 void handlePump(WiFiClient& client, String& body);
 void wyslijTelemetrie();
 void wyslijOdpowiedzJSON(WiFiClient& client, int kod, String json);
+void sprawdzOdkrywanieSerwera();
 
 // =============================================
 // PANEL DIAGNOSTYCZNY
@@ -261,70 +245,34 @@ void setup() {
   konfigurujSerwa();
 
   EEPROM.get(0, watirConfig);
-  if (watirConfig.magic != 0x12345678) {
-    watirConfig.magic = 0x12345678;
+  if (watirConfig.magic != 0x1CDF601) { // Zmieniono na prawidłowy kod szesnastkowy
+    watirConfig.magic = 0x1CDF601;
+    strcpy(watirConfig.wifi_ssid, "");
+    strcpy(watirConfig.wifi_pass, "");
     watirConfig.p1_moisture = 35;
     watirConfig.p1_sensor = A1;
     watirConfig.p1_pan = 90;
     watirConfig.p1_tilt = 90;
+    watirConfig.p1_pump_power = 70;
     watirConfig.p2_moisture = 35;
     watirConfig.p2_sensor = A0;
     watirConfig.p2_pan = 90;
     watirConfig.p2_tilt = 90;
+    watirConfig.p2_pump_power = 70;
     watirConfig.min_temp_block = 5;
     watirConfig.max_temp_force = 35;
-    watirConfig.pump_power = 70;
+    watirConfig.min_air_humidity_force = 40; // Przykładowa domyślna wartość
     watirConfig.auto_watering = true;
     watirConfig.check_interval_ms = 10000;
     EEPROM.put(0, watirConfig);
   }
-  ustawMocPompy(watirConfig.pump_power);
+  
+  // Menu konfiguracji (nowa funkcja z DisplayMenu)
+  runLcdConfigMenu();
 
-  // --- Łączenie z WiFi (do 60 sekund) ---
-  lcd.clear();
-  lcd.print("Laczenie WiFi...");
-  Serial.print("[WiFi] Laczenie z siecia: ");
-  Serial.println(ssid);
-
-  WiFi.begin(ssid, password);
-
-  int proba = 0;
-  // 120 prób co 500 ms = 60 sekund
-  while (WiFi.status() != WL_CONNECTED && proba < 120) {
-    delay(500);
-    Serial.print(".");
-    proba++;
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    // Wait for IP address to be assigned by DHCP
-    while (WiFi.localIP()[0] == 0) {
-      delay(100);
-    }
-    Serial.println();
-    Serial.print("[WiFi] Polaczono! IP: ");
-    Serial.println(WiFi.localIP());
-
-    trybAutomatyczny = true;
-
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("WiFi OK!");
-    lcd.setCursor(0, 1);
-    lcd.print("TRYB: AUTO");
-    delay(2000);
-  } else {
-    Serial.println();
-    Serial.println("[WiFi] Blad polaczenia! Przejscie w tryb reczny.");
-
-    trybAutomatyczny = true; // Zabezpieczenie przed zablokowaniem automatyki w przypadku braku połączenia WiFi
-
-    lcd.clear();
-    lcd.print("Brak WiFi!");
-    lcd.setCursor(0, 1);
-    lcd.print("TRYB: MANUAL");
-    delay(2000);
-  }
+  // --- Łączenie z WiFi wykonano już w runLcdConfigMenu() ---
+  // Jeśli wifi jest ustawione na WL_CONNECTED, to serwer wystartuje.
+  // Poniższy stary kod łączenia zostaje usunięty na rzecz menu LCD.
 
   // --- Inicjalizacja czujników po WiFi ---
   // Inicjalizacja czujników SPI (np. BME280) po WiFi.begin(), 
@@ -333,6 +281,7 @@ void setup() {
 
   // --- Start serwera HTTP ---
   serwer.begin();
+  udp.begin(3000); // Nasłuchuj na porcie UDP 3000 dla Auto-Discovery
   Serial.println("[HTTP] Serwer nasluchuje na porcie 80");
 
   lcd.clear();
@@ -369,8 +318,7 @@ void loop() {
   // --- 2. OBSŁUGA ŻĄDAŃ HTTP (Z APLIKACJI / BACKENDU) ---
   obsluzKlientaHTTP();
 
-  // --- 2B. OBSŁUGA KONFIGURACJI PRZEZ SERIAL (OFFLINE) ---
-  obsluzKlientaSerial();
+  // UWAGA: Obsługa klienta Serial usunięta na rzecz LCD menu.
 
   // --- 3. RUCH RAMIENIA — JOYSTICK FIZYCZNY + KIERUNEK WiFi ---
   // Serwa nigdy nie blokujemy — blokada "brak wody" dotyczy tylko pompy
@@ -399,23 +347,24 @@ void loop() {
     if (dystansWody >= 12) {
       systemZablokowany = true;
       lcd.setCursor(0, 0);
-      lcd.print("!!! BRAK WODY !!!");
+      lcd.print("!! BRAK WODY !! "); // 16 znaków
+      lcd.setCursor(0, 1);
+      lcd.print("                "); // Pusta linia pod spodem - ukrywa sensory
     } else {
       systemZablokowany = false;
 
       // LCD linia 1: Temperatura i wilgotność powietrza
       lcd.setCursor(0, 0);
       lcd.print("T:"); lcd.print(zmierzTemperature(), 1);
-      lcd.print("C H:"); lcd.print(zmierzWilgotnoscPowietrza(), 0); lcd.print("%    ");
-
-      // LCD linia 2: Wilgotność gleby i poziom wody
+      lcd.print("C H:"); lcd.print(zmierzWilgotnoscPowietrza(), 0); lcd.print("%   ");
+      
+      // LCD linia 2: Wilgotność gleby i poziom wody (tylko jak jest woda)
       lcd.setCursor(0, 1);
-      lcd.print("G1:"); lcd.print(gleba1);
+      lcd.print("G1:"); lcd.print(gleba1); lcd.print(" ");
       lcd.setCursor(6, 1);
-      lcd.print("G2:"); lcd.print(gleba2);
+      lcd.print("G2:"); lcd.print(gleba2); lcd.print(" ");
       lcd.setCursor(12, 1);
-      lcd.print("W:"); lcd.print(dystansWody);
-      if (dystansWody < 10) lcd.print(" ");
+      lcd.print("W:"); lcd.print(dystansWody); lcd.print(" ");
     }
   }
 
@@ -433,11 +382,14 @@ void loop() {
         if (temp < watirConfig.min_temp_block) {
           Serial.println("[AUTO] Za zimno! Blokada podlewania.");
         } else {
-          bool force = (temp > watirConfig.max_temp_force);
+          float wilgPow = zmierzWilgotnoscPowietrza();
+          // Nowy warunek dodany przez użytkownika: polewamy m.in. wtedy, gdy wilgotność pow. < próg
+          bool force = (temp > watirConfig.max_temp_force) || (wilgPow < watirConfig.min_air_humidity_force);
           
           if (force || gleba1 < watirConfig.p1_moisture) {
             Serial.println("[AUTO] Podlewam Rosline 1!");
             ustawNadRoslina(1, watirConfig.p1_pan, watirConfig.p1_tilt);
+            ustawMocPompy(watirConfig.p1_pump_power); // Ustaw dedykowaną moc pompy
             pompAktywna = true; podlej(); pompAktywna = false;
             delay(1000);
           }
@@ -445,6 +397,7 @@ void loop() {
           if (force || gleba2 < watirConfig.p2_moisture) {
             Serial.println("[AUTO] Podlewam Rosline 2!");
             ustawNadRoslina(2, watirConfig.p2_pan, watirConfig.p2_tilt);
+            ustawMocPompy(watirConfig.p2_pump_power); // Ustaw dedykowaną moc pompy
             pompAktywna = true; podlej(); pompAktywna = false;
             delay(1000);
           }
@@ -456,8 +409,10 @@ void loop() {
   }
 
   // --- 6. CYKLICZNA TELEMETRIA DO BACKENDU (co 30 sekund) ---
-  if (WiFi.status() == WL_CONNECTED) {
-    if (millis() - ostatniaTelemetria >= TELEMETRY_INTERVAL) {
+  if (!isOfflineMode && WiFi.status() == WL_CONNECTED) {
+    sprawdzOdkrywanieSerwera();
+
+    if (backendHost != "" && millis() - ostatniaTelemetria >= TELEMETRY_INTERVAL) {
       ostatniaTelemetria = millis();
 
       // Usypiamy serwa na czas transmisji (oszczędność prądu)
@@ -555,95 +510,7 @@ void obsluzKlientaHTTP() {
   client.stop();
 }
 
-// =============================================
-// OBSŁUGA SERIAL — KONFIGURACJA OFFLINE
-// Oczekuje JSON-a o strukturze takiej samej jak /api/config:
-// {"config": {"moisture_threshold": 35, ...}}
-// =============================================
-void obsluzKlientaSerial() {
-  if (Serial.available() > 0) {
-    String linia = Serial.readStringUntil('\n');
-    linia.trim();
-
-    if (linia.length() > 0 && linia.startsWith("{")) {
-      StaticJsonDocument<256> doc;
-      DeserializationError err = deserializeJson(doc, linia);
-
-      if (err) {
-        Serial.println("{\"status\":\"error\",\"message\":\"Nieprawidlowy JSON\"}");
-        return;
-      }
-
-      JsonObject mockObj = doc["mock"];
-      if (!mockObj.isNull()) {
-        if (mockObj.containsKey("active")) mockActive = mockObj["active"].as<bool>();
-        if (mockObj.containsKey("g1")) mockG1 = mockObj["g1"].as<int>();
-        if (mockObj.containsKey("g2")) mockG2 = mockObj["g2"].as<int>();
-        if (mockObj.containsKey("temp")) mockTemp = mockObj["temp"].as<float>();
-        if (mockObj.containsKey("water_level")) mockDist = mockObj["water_level"].as<int>();
-        
-        Serial.println("{\"status\":\"success\",\"message\":\"Mock aktywowany/zaktualizowany\"}");
-        return;
-      }
-
-      if (doc.containsKey("debug")) {
-        Serial.print("{\"DEBUG\": {\"p1_m\": "); Serial.print(watirConfig.p1_moisture);
-        Serial.print(", \"p1_sensor\": "); Serial.print(watirConfig.p1_sensor);
-        Serial.print(", \"g1\": "); Serial.print(zmierzWilgotnoscGleby(watirConfig.p1_sensor));
-        Serial.print(", \"auto_w\": "); Serial.print(watirConfig.auto_watering);
-        Serial.print(", \"zab\": "); Serial.print(systemZablokowany);
-        Serial.print(", \"mock\": "); Serial.print(mockActive);
-        Serial.println("}}");
-        return;
-      }
-
-      JsonObject config = doc["config"];
-      if (config.isNull()) {
-        Serial.println("{\"status\":\"error\",\"message\":\"Brak obiektu config lub mock\"}");
-        return;
-      }
-
-      // Aktualizuj parametry profilu globalnego
-      if (config.containsKey("auto_watering")) watirConfig.auto_watering = config["auto_watering"].as<bool>();
-      if (config.containsKey("check_interval_ms")) watirConfig.check_interval_ms = config["check_interval_ms"].as<unsigned long>();
-      if (config.containsKey("pump_power")) {
-        watirConfig.pump_power = config["pump_power"].as<int>();
-        ustawMocPompy(watirConfig.pump_power);
-      }
-      if (config.containsKey("min_temp_block")) watirConfig.min_temp_block = config["min_temp_block"].as<int>();
-      if (config.containsKey("max_temp_force")) watirConfig.max_temp_force = config["max_temp_force"].as<int>();
-
-      if (config.containsKey("target_plant")) {
-        int tPlant = config["target_plant"].as<int>();
-        if (tPlant == 1) {
-          if (config.containsKey("moisture_threshold")) watirConfig.p1_moisture = config["moisture_threshold"].as<int>();
-          if (config.containsKey("sensor")) watirConfig.p1_sensor = config["sensor"].as<int>();
-          if (config.containsKey("pan")) watirConfig.p1_pan = constrain(config["pan"].as<int>(), 0, 180);
-          if (config.containsKey("tilt")) watirConfig.p1_tilt = constrain(config["tilt"].as<int>(), 0, 180);
-          ustawPozycjeSerwaWiFi(watirConfig.p1_pan, watirConfig.p1_tilt);
-        } else if (tPlant == 2) {
-          if (config.containsKey("moisture_threshold")) watirConfig.p2_moisture = config["moisture_threshold"].as<int>();
-          if (config.containsKey("sensor")) watirConfig.p2_sensor = config["sensor"].as<int>();
-          if (config.containsKey("pan")) watirConfig.p2_pan = constrain(config["pan"].as<int>(), 0, 180);
-          if (config.containsKey("tilt")) watirConfig.p2_tilt = constrain(config["tilt"].as<int>(), 0, 180);
-          ustawPozycjeSerwaWiFi(watirConfig.p2_pan, watirConfig.p2_tilt);
-        }
-      }
-      
-      EEPROM.put(0, watirConfig);
-
-      // Informacja na LCD
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Serial OK!");
-      lcd.setCursor(0, 1);
-      lcd.print("Zapisano EEPROM.");
-      
-      // Wyślij potwierdzenie po Serialu (dla GUI w Pythonie)
-      Serial.println("{\"status\":\"success\",\"message\":\"Zapisano do EEPROM\"}");
-    }
-  }
-}
+// Obsługa klienta Serial została usunięta na rzecz menu LCD.
 
 // =============================================
 // HANDLER: POST /api/move
@@ -744,12 +611,36 @@ void handleConfig(WiFiClient& client, String& body) {
     return;
   }
 
-  // (Uproszczone z racji przejścia na Serial Config)
+  // Obsługa parametryzacji globalnej (pompa)
   if (config.containsKey("pump_power")) {
-    watirConfig.pump_power = config["pump_power"].as<int>();
-    ustawMocPompy(watirConfig.pump_power);
-    EEPROM.put(0, watirConfig);
+    int pwr = config["pump_power"].as<int>();
+    watirConfig.p1_pump_power = pwr;
+    watirConfig.p2_pump_power = pwr;
+    ustawMocPompy(pwr);
   }
+
+  if (config.containsKey("auto_watering")) watirConfig.auto_watering = config["auto_watering"].as<bool>();
+  if (config.containsKey("check_interval_ms")) watirConfig.check_interval_ms = config["check_interval_ms"].as<unsigned long>();
+  
+  // Obsługa profilu konkretnej rośliny
+  if (config.containsKey("target_plant")) {
+    int tPlant = config["target_plant"].as<int>();
+    if (tPlant == 1) {
+      if (config.containsKey("moisture_threshold")) watirConfig.p1_moisture = config["moisture_threshold"].as<int>();
+      if (config.containsKey("sensor")) watirConfig.p1_sensor = config["sensor"].as<int>();
+      if (config.containsKey("pan")) watirConfig.p1_pan = constrain(config["pan"].as<int>(), 0, 180);
+      if (config.containsKey("tilt")) watirConfig.p1_tilt = constrain(config["tilt"].as<int>(), 0, 180);
+      ustawPozycjeSerwaWiFi(watirConfig.p1_pan, watirConfig.p1_tilt);
+    } else if (tPlant == 2) {
+      if (config.containsKey("moisture_threshold")) watirConfig.p2_moisture = config["moisture_threshold"].as<int>();
+      if (config.containsKey("sensor")) watirConfig.p2_sensor = config["sensor"].as<int>();
+      if (config.containsKey("pan")) watirConfig.p2_pan = constrain(config["pan"].as<int>(), 0, 180);
+      if (config.containsKey("tilt")) watirConfig.p2_tilt = constrain(config["tilt"].as<int>(), 0, 180);
+      ustawPozycjeSerwaWiFi(watirConfig.p2_pan, watirConfig.p2_tilt);
+    }
+  }
+
+  EEPROM.put(0, watirConfig);
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("HTTP Config OK!");
@@ -832,7 +723,10 @@ void handlePump(WiFiClient& client, String& body) {
   if (doc.containsKey("duration")) {
     int durationMs = constrain(doc["duration"].as<int>(), 500, 30000);
 
+    Serial.print("[PUMP] Otrzymano komende na: "); Serial.print(durationMs); Serial.println("ms");
+
     if (systemZablokowany || zmierzDystans() >= 12) {
+      Serial.println("[PUMP] Zablokowane - brak wody!");
       wyslijOdpowiedzJSON(client, 400,
         "{\"status\":\"error\",\"message\":\"Brak wody - podlewanie zablokowane\"}");
       return;
@@ -873,7 +767,7 @@ void wyslijTelemetrie() {
 
   Serial.println("[HTTP] Wysylam telemetrie...");
 
-  if (!client.connect(backendHost, backendPort)) {
+  if (!client.connect(backendHost.c_str(), backendPort)) {
     Serial.println("[HTTP] Blad polaczenia z backendem!");
     return;
   }
@@ -946,4 +840,49 @@ void wyslijOdpowiedzJSON(WiFiClient& client, int kod, String json) {
   client.println("Content-Length: " + String(json.length()));
   client.println();
   client.print(json);
+}
+
+// =============================================
+// UDP AUTO-DISCOVERY
+// =============================================
+void sprawdzOdkrywanieSerwera() {
+  // Jeśli mamy już adres serwera, nic nie rób
+  if (backendHost != "") {
+    return;
+  }
+
+  // Sprawdzanie czy przyszła odpowiedź od serwera
+  while (udp.parsePacket()) {
+    char buf[255];
+    int len = udp.read(buf, 255);
+    if (len > 0) {
+      buf[len] = '\0';
+    }
+    String msg = String(buf);
+    msg.trim();
+    
+    if (msg == "WATIR_DISCOVER_SERVER") {
+      backendHost = udp.remoteIP().toString();
+      Serial.print("[UDP] Znaleziono serwer: ");
+      Serial.println(backendHost);
+      lcd.clear();
+      lcd.print("Serwer znaleziony:");
+      lcd.setCursor(0, 1);
+      lcd.print(backendHost);
+      delay(2000);
+      lcd.clear();
+      break;
+    }
+  }
+
+  // Rozgłaszanie zapytania co 5 sekund
+  if (millis() - ostatnieWyszukiwanieUDP >= 5000) {
+    ostatnieWyszukiwanieUDP = millis();
+    Serial.println("[UDP] Szukam serwera Node.js...");
+    // UDP Broadcast na 255.255.255.255:3000
+    udp.beginPacket(IPAddress(255, 255, 255, 255), 3000);
+    String payload = "WATIR_DISCOVER_CLIENT:" + String(deviceId);
+    udp.print(payload);
+    udp.endPacket();
+  }
 }

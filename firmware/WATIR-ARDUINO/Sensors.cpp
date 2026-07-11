@@ -1,6 +1,5 @@
 // ============================================
 // WATIR IoT — Firmware dla Arduino UNO R4 WiFi
-// Wersja: 2.0 — WiFi wbudowane (bez osobnego ESP)
 // ============================================
 //
 // Moduł: Czujniki
@@ -16,8 +15,8 @@
 #include <SPI.h>
 
 // Piny dla czujników środowiskowych
-const int pinGleba1 = A1;  
-const int pinGleba2 = A0; 
+const int pinGleba1 = A0;  
+const int pinGleba2 = A1; 
 const int pinTrig = 8;
 const int pinEcho = 7;
 
@@ -60,8 +59,8 @@ int zmierzDystans() {
 // Odczyt z wybranego czujnika gleby (wartość w procentach: 0-100%)
 int zmierzWilgotnoscGleby(int pin) {
   if (mockActive) {
-    if (pin == 14 || pin == A0) return mockG2; // A0 (domyślnie G2)
-    if (pin == 15 || pin == A1) return mockG1; // A1 (domyślnie G1)
+    if (pin == 14 || pin == A0) return mockG1; // A0 to teraz G1
+    if (pin == 15 || pin == A1) return mockG2; // A1 to teraz G2
     return 50;
   }
   return constrain(map(analogRead(pin), 0, 1023, 0, 100), 0, 100);

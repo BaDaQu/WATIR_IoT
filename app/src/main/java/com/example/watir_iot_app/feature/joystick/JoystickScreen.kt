@@ -92,12 +92,15 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
 
         Slider(
             value = pumpPower,
+
             onValueChange = {
+
                 pumpPower = it
-                watirViewModel.setPumpPower(it.toInt())
+                val finalPumpPower = 45f + ((pumpPower - 1) * (60f - 45f))/(100f - 1f)
+                watirViewModel.setPumpPower(finalPumpPower.roundToInt())
                             },
-            valueRange = 40f..60f,
-            steps = 19,
+            valueRange = 1f..100f,
+            steps = 99,
             colors = SliderDefaults.colors(
                 thumbColor = watirBlue,
                 activeTrackColor = watirBlue,
@@ -209,7 +212,8 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         ) {
             Button(
                 onClick = {
-                    watirViewModel.triggerPump(power = pumpPower.toInt(), duration = 3000)
+                    val finalPumpPower = 45f + ((pumpPower - 1) * (60f - 45f))/(100f - 1f)
+                    watirViewModel.triggerPump(power = finalPumpPower.roundToInt(), duration = 1500)
                 },
                 modifier = Modifier
                     .weight(0.4f)

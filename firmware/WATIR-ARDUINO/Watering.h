@@ -1,6 +1,5 @@
 // ============================================
 // WATIR IoT — Firmware dla Arduino UNO R4 WiFi
-// Wersja: 2.0 — WiFi wbudowane (bez osobnego ESP)
 // ============================================
 //
 // Moduł: Podlewanie

@@ -142,6 +142,7 @@ class WatirViewModel : ViewModel(){
         moistureThreshold: Int,
         autoWatering: Boolean,
         checkIntervalMs: Int,
+        sensor: Int,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -155,7 +156,8 @@ class WatirViewModel : ViewModel(){
                             autoWatering,
                             checkIntervalMs,
                             90,
-                            90
+                            90,
+                            sensor
                         )
                     val response = api.createPlantProfile(req)
                     if (response.status == "success") {
@@ -176,6 +178,7 @@ class WatirViewModel : ViewModel(){
         moistureThreshold: Int,
         autoWatering: Boolean,
         checkIntervalMs: Int,
+        sensor: Int,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -192,7 +195,8 @@ class WatirViewModel : ViewModel(){
                         autoWatering,
                         checkIntervalMs,
                         panToSave,
-                        tiltToSave
+                        tiltToSave,
+                        sensor
                     )
                     val response = api.updatePlantProfile(id, req)
                     if (response.status == "success") {
@@ -251,7 +255,8 @@ class WatirViewModel : ViewModel(){
                         auto_watering = existing.auto_watering,
                         check_interval_ms = existing.check_interval_ms,
                         pan = currentX,
-                        tilt = currentY
+                        tilt = currentY,
+                        sensor = existing.sensor
                     )
                     val response = api.updatePlantProfile(id, req)
                     if (response.status == "success") {

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -57,6 +58,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
     var nameInput by remember { mutableStateOf("") }
     var thresholdInput by remember { mutableStateOf("") }
     var intervalInput by remember { mutableStateOf("") }
+    var sensorInput by remember { mutableStateOf(1) }
 
     val watirNavy = Color(0xFF102A43)
     val watirBlue = Color(0xFF2EB4E6)
@@ -89,6 +91,23 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                         label = { Text("Interwał sprawdzania (ms)") },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Czujnik gleby", style = MaterialTheme.typography.labelLarge)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.RadioButton(
+                            selected = sensorInput == 1,
+                            onClick = { sensorInput = 1 },
+                            colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = watirNavy)
+                        )
+                        Text("Czujnik 1 (G1)")
+                        Spacer(modifier = Modifier.width(16.dp))
+                        androidx.compose.material3.RadioButton(
+                            selected = sensorInput == 2,
+                            onClick = { sensorInput = 2 },
+                            colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = watirNavy)
+                        )
+                        Text("Czujnik 2 (G2)")
+                    }
                 }
             },
             confirmButton = {
@@ -104,6 +123,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                                 moistureThreshold = threshold,
                                 autoWatering = true,
                                 checkIntervalMs = interval,
+                                sensor = sensorInput,
                                 onSuccess = {
                                     Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
                                     showDialog = false
@@ -118,6 +138,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                                 moistureThreshold = threshold,
                                 autoWatering = true,
                                 checkIntervalMs = interval,
+                                sensor = sensorInput,
                                 onSuccess = {
                                     Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
                                     showDialog = false
@@ -185,6 +206,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                 nameInput = ""
                 thresholdInput = ""
                 intervalInput = "10000"
+                sensorInput = 1
                 showDialog = true
             }) {
                 Icon(Icons.Default.Add, contentDescription = "Dodaj profil", tint = watirNavy)
@@ -238,6 +260,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                         nameInput = plant.name
                         thresholdInput = plant.moisture_threshold.toString()
                         intervalInput = plant.check_interval_ms.toString()
+                        sensorInput = plant.sensor
                         showDialog = true
                     }
                 }) {
