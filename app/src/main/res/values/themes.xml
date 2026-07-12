@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="Theme.WATIR_IoT_APP" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- Kolory podstawowe dla systemu Android (nie dla Compose) -->
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryDark">@color/purple_700</item>
+        <item name="colorAccent">@color/teal_200</item>
 
-    <style name="Theme.WATIR_IoT_APP" parent="android:Theme.Material.Light.NoActionBar" />
+        <!-- Naprawa paska statusu w trybie ciemnym -->
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
 </resources>

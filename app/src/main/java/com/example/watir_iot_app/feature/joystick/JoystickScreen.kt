@@ -45,9 +45,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.watir_iot_app.R
 import com.example.watir_iot_app.data.model.PlantProfile
 import com.example.watir_iot_app.viewmodel.WatirViewModel
 import kotlin.math.roundToInt
@@ -64,6 +66,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
 
     var pumpPower by remember { mutableFloatStateOf(50f) }
 
+    // Paleta Kolorów z Logo WATIR (Przywrócona)
     val watirNavy = Color(0xFF102A43)
     val watirBlue = Color(0xFF2EB4E6)
     val watirGreen = Color(0xFF549E39)
@@ -75,10 +78,10 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
     ) {
 
         Text(
-            text = "Sterowanie Ręczne",
+            text = stringResource(R.string.joystick_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = watirNavy
+            color = MaterialTheme.colorScheme.primary
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -92,13 +95,11 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
 
         Slider(
             value = pumpPower,
-
             onValueChange = {
-
                 pumpPower = it
                 val finalPumpPower = 45f + ((pumpPower - 1) * (60f - 45f))/(100f - 1f)
                 watirViewModel.setPumpPower(finalPumpPower.roundToInt())
-                            },
+            },
             valueRange = 1f..100f,
             steps = 99,
             colors = SliderDefaults.colors(
@@ -157,9 +158,9 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         Spacer(modifier = Modifier.height(48.dp))
 
         Text(
-            text = "Wybierz roślinę do kalibracji",
+            text = stringResource(R.string.joystick_calibrate_hint),
             style = MaterialTheme.typography.titleMedium,
-            color = watirNavy
+            color = MaterialTheme.colorScheme.primary
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -172,7 +173,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                 .padding(horizontal = 24.dp)
         ) {
             OutlinedTextField(
-                value = selectedPlant?.name ?: "Wybierz profil",
+                value = selectedPlant?.name ?: stringResource(R.string.settings_select_profile),
                 onValueChange = {},
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -218,10 +219,12 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                 modifier = Modifier
                     .weight(0.4f)
                     .height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = watirBlue),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = watirBlue
+                ),
                 shape = MaterialTheme.shapes.medium
             ) {
-                Text("Podlej", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.joystick_water_button), fontWeight = FontWeight.Bold)
             }
 
             Button(
@@ -240,11 +243,11 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = watirGreen,
-                    disabledContainerColor = Color.LightGray
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
                 shape = MaterialTheme.shapes.medium
             ) {
-                Text("Zapisz pozycję", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.joystick_save_pos_button), fontWeight = FontWeight.Bold)
             }
         }
     }

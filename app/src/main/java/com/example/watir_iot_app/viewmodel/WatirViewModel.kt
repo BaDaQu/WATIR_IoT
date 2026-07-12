@@ -1,4 +1,5 @@
 package com.example.watir_iot_app.viewmodel
+
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.State
 import androidx.lifecycle.ViewModel
@@ -16,7 +17,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 
-class WatirViewModel : ViewModel(){
+class WatirViewModel : ViewModel() {
 
     private var watirAPI: WatirAPI? = null
 
@@ -28,6 +29,21 @@ class WatirViewModel : ViewModel(){
 
     private val _isConnected = mutableStateOf(false)
     val isConnected: State<Boolean> = _isConnected
+
+    // Settings
+    private val _isDarkMode = mutableStateOf(false)
+    val isDarkMode: State<Boolean> = _isDarkMode
+
+    private val _language = mutableStateOf("pl")
+    val language: State<String> = _language
+
+    fun toggleDarkMode(enabled: Boolean) {
+        _isDarkMode.value = enabled
+    }
+
+    fun setLanguage(langCode: String) {
+        _language.value = langCode
+    }
 
     private val throttleIntervalMs = 200L
     private val lastSendTimestamps = mutableMapOf<String, Long>()
@@ -83,15 +99,14 @@ class WatirViewModel : ViewModel(){
             viewModelScope.launch {
                 try {
                     val response = api.getTelemetryHistory()
-
                     _telemetryHistory.value = response
-
                 } catch (e: Exception) {
                     println("Failed to fetch telemetry history: ${e.message}")
                 }
             }
         }
     }
+
     fun startLiveUpdates() {
         viewModelScope.launch {
             while (_isConnected.value) {
@@ -149,16 +164,15 @@ class WatirViewModel : ViewModel(){
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
-                    val req =
-                        PlantProfileRequest(
-                            name,
-                            moistureThreshold,
-                            autoWatering,
-                            checkIntervalMs,
-                            90,
-                            90,
-                            sensor
-                        )
+                    val req = PlantProfileRequest(
+                        name,
+                        moistureThreshold,
+                        autoWatering,
+                        checkIntervalMs,
+                        90,
+                        90,
+                        sensor
+                    )
                     val response = api.createPlantProfile(req)
                     if (response.status == "success") {
                         onSuccess(response.message ?: "Profile created")
@@ -240,7 +254,6 @@ class WatirViewModel : ViewModel(){
         onError: (String) -> Unit
     ) {
         val existing = _plantProfiles.value.find { it.id == id }
-
         if (existing == null) {
             onError("Profile with ID $id not found")
             return
