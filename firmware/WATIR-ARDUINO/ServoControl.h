@@ -1,6 +1,5 @@
 // ============================================
 // WATIR IoT — Firmware dla Arduino UNO R4 WiFi
-// Wersja: 2.0 — WiFi wbudowane (bez osobnego ESP)
 // ============================================
 //
 // Moduł: Serwomechanizmy
@@ -13,10 +12,23 @@
 
 #include <Arduino.h>
 
+enum JoyDir {
+    JOY_NONE,
+    JOY_UP,
+    JOY_DOWN,
+    JOY_LEFT,
+    JOY_RIGHT,
+    JOY_CLICK
+};
+
 void konfigurujSerwa();
 void aktualizujSerwa(bool blokadaSerw);
 extern String komendaWiFiCiagla;
-int pobierzKierunekJoysticka();
+int pobierzKierunekJoysticka(); // Stara funkcja, ew. do refaktoryzacji
+JoyDir getJoystickAction();
+void waitForJoystickRelease();
+void calibratePlantPosition(int &pan, int &tilt, int roslina);
+
 int pobierzPozycjeSerwaX();
 int pobierzPozycjeSerwaY();
 void uzyjSerw(bool wlacz);

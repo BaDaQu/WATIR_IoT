@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS telemetry_logs (
     timestamp BIGINT NOT NULL,          -- UNIX Epoch z JSONa
     temp REAL,                          -- Temperatura
     humidity INT,                       -- Wilgotność powietrza
-    soil_moisture INT,                  -- Wilgotność gleby
+    soil_moisture_1 INT,                -- Wilgotność gleby 1 (A0)
+    soil_moisture_2 INT,                -- Wilgotność gleby 2 (A1)
     water_level_cm INT,                 -- Poziom wody HC-SR04
     water_error BOOLEAN,                -- Zabezpieczenie na sucho
     pump_active BOOLEAN,                -- Czy pompa lała
@@ -28,7 +29,8 @@ CREATE TABLE IF NOT EXISTS plant_profiles (
     auto_watering BOOLEAN DEFAULT true,
     check_interval_ms INT DEFAULT 10000,
     pan INT NOT NULL DEFAULT 90 CHECK (pan >= 0 AND pan <= 180),
-    tilt INT NOT NULL DEFAULT 90 CHECK (tilt >= 0 AND tilt <= 180)
+    tilt INT NOT NULL DEFAULT 90 CHECK (tilt >= 0 AND tilt <= 180),
+    sensor INT DEFAULT 1 CHECK (sensor IN (1, 2)) -- Wybór czujnika (1=G1, 2=G2)
 );
 
 -- ==========================================
@@ -51,9 +53,9 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_device_timestamp
 -- DANE TESTOWE
 -- ==========================================
 
--- Wrzucamy testowy profil rośliny (jeśli nie istnieje) z domyślnym położeniem serw (X: 120, Y: 30)
-INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms, pan, tilt)
-SELECT 'Kaktus_Testowy', 20, true, 10000, 120, 30
+-- Wrzucamy testowy profil rośliny (jeśli nie istnieje) z domyślnym położeniem serw (X: 120, Y: 30) i przypisanym czujnikiem G1
+INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms, pan, tilt, sensor)
+SELECT 'Kaktus_Testowy', 20, true, 10000, 120, 30, 1
 WHERE NOT EXISTS (
     SELECT 1 FROM plant_profiles WHERE name = 'Kaktus_Testowy'
 );

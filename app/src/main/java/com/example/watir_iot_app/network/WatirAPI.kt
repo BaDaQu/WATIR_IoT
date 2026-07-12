@@ -7,6 +7,7 @@ import com.example.watir_iot_app.data.model.PlantProfileListResponse
 import com.example.watir_iot_app.data.model.TelemetryHistoryResponse
 import com.example.watir_iot_app.data.model.PlantProfileRequest
 import com.example.watir_iot_app.data.model.PlantProfileResponse
+import com.example.watir_iot_app.data.model.PumpRequest
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -38,4 +39,7 @@ interface WatirAPI {
 
     @POST("api/plants/{id}/apply")
     suspend fun applyPlantProfile(@Path("id") id: Int): PlantProfileApplyResponse
+
+    @POST("api/pump")
+    suspend fun triggerPump(@Body request: PumpRequest)
 }

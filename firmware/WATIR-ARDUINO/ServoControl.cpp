@@ -1,6 +1,5 @@
 // ============================================
 // WATIR IoT — Firmware dla Arduino UNO R4 WiFi
-// Wersja: 2.0 — WiFi wbudowane (bez osobnego ESP)
 // ============================================
 //
 // Moduł: Serwomechanizmy
@@ -17,6 +16,7 @@ const int pinSerwo1 = 9;
 const int pinSerwo2 = 6; 
 const int pinJoyX = A3;
 const int pinJoyY = A2;
+const int pinJoyBtn = 2; // Dodano pin dla przycisku
 
 Servo serwoX; // Serwo do ruchu lewo/prawo
 Servo serwoY; // Serwo do ruchu góra/dół
@@ -140,4 +140,84 @@ void ustawPozycjeSerwaWiFi(int x, int y) {
     aktualnaPozycjaY = constrain(y, 0, 180);
     serwoX.write(aktualnaPozycjaX);
     serwoY.write(aktualnaPozycjaY);
+}
+
+// --- NOWE FUNKCJE DO MENU LCD ---
+
+JoyDir getJoystickAction() {
+    if (digitalRead(pinJoyBtn) == LOW) {
+        delay(50); // debounce
+        if (digitalRead(pinJoyBtn) == LOW) {
+            return JOY_CLICK;
+        }
+    }
+    int ox = analogRead(pinJoyX);
+    int oy = analogRead(pinJoyY);
+    
+    int odchylenieX = abs(ox - 512);
+    int odchylenieY = abs(oy - 512);
+    
+    // Ignorowanie skosów: wygrywa silniejsze odchylenie
+    if (odchylenieX > odchylenieY) {
+        if (ox > martwaStrefaMax) return JOY_LEFT;  // Odwrócona oś X
+        if (ox < martwaStrefaMin) return JOY_RIGHT;
+    } else if (odchylenieY > odchylenieX) {
+        if (oy > martwaStrefaMax) return JOY_UP;    // Odwrócona oś Y
+        if (oy < martwaStrefaMin) return JOY_DOWN;
+    }
+    return JOY_NONE;
+}
+
+void waitForJoystickRelease() {
+    while(getJoystickAction() != JOY_NONE) {
+        delay(10);
+    }
+    delay(50);
+}
+
+#include <LiquidCrystal_I2C.h>
+extern LiquidCrystal_I2C lcd;
+
+void calibratePlantPosition(int &pan, int &tilt, int roslina) {
+    uzyjSerw(true);
+    aktualnaPozycjaX = pan;
+    aktualnaPozycjaY = tilt;
+    serwoX.write(aktualnaPozycjaX);
+    serwoY.write(aktualnaPozycjaY);
+    
+    lcd.clear();
+    lcd.print("Kalibracja R"); lcd.print(roslina);
+    lcd.setCursor(0, 1);
+    lcd.print("Ustaw i Kliknij");
+
+    // Poczekaj chwilę, żeby użytkownik puścił joystick po wejściu do tego menu
+    waitForJoystickRelease();
+
+    while(true) {
+        JoyDir act = getJoystickAction();
+        if (act == JOY_CLICK) {
+            waitForJoystickRelease();
+            pan = aktualnaPozycjaX;
+            tilt = aktualnaPozycjaY;
+            
+            lcd.clear();
+            lcd.print("Zapisano poz.");
+            delay(1000);
+            break;
+        }
+        
+        if (act != JOY_NONE) {
+            if (act == JOY_LEFT) aktualnaPozycjaX += krokSerwa;
+            else if (act == JOY_RIGHT) aktualnaPozycjaX -= krokSerwa;
+            else if (act == JOY_UP) aktualnaPozycjaY -= krokSerwa;
+            else if (act == JOY_DOWN) aktualnaPozycjaY += krokSerwa;
+            
+            aktualnaPozycjaX = constrain(aktualnaPozycjaX, 0, 180);
+            aktualnaPozycjaY = constrain(aktualnaPozycjaY, 0, 180);
+            
+            serwoX.write(aktualnaPozycjaX);
+            serwoY.write(aktualnaPozycjaY);
+            delay(50); // Mniejsze opóźnienie dla płynności
+        }
+    }
 }

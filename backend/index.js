@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const dgram = require('dgram');
 
 const app = express();
 app.use(cors());
@@ -9,6 +10,35 @@ app.use(express.json());
 
 // Słownik przechowujący ostatnio znane IP urządzeń w sieci lokalnej (Auto-discovery)
 const activeDevices = {};
+
+// ==========================================
+// UDP AUTO-DISCOVERY SERVER
+// ==========================================
+const udpServer = dgram.createSocket('udp4');
+
+udpServer.on('message', (msg, rinfo) => {
+  const message = msg.toString();
+  if (message.startsWith('WATIR_DISCOVER_CLIENT:')) {
+    const deviceId = message.split(':')[1];
+    activeDevices[deviceId] = rinfo.address;
+    console.log(`[UDP] Odkryto urządzenie ${deviceId} pod adresem IP: ${rinfo.address}`);
+    
+    // Odpowiedz serwera do klienta (Unicast)
+    const reply = Buffer.from('WATIR_DISCOVER_SERVER');
+    udpServer.send(reply, 3000, rinfo.address, (err) => {
+      if (err) console.error('[UDP] Błąd podczas wysyłania odpowiedzi:', err);
+    });
+  }
+});
+
+udpServer.on('error', (err) => {
+  console.error(`[UDP] Błąd serwera UDP:\n${err.stack}`);
+  udpServer.close();
+});
+
+udpServer.bind(3000, () => {
+  console.log('✅ Serwer UDP Auto-Discovery nasłuchuje na porcie 3000');
+});
 
 // ==========================================
 // KONFIGURACJA RETENCJI — Issue #22
@@ -80,8 +110,8 @@ app.post('/api/telemetry', async (req, res) => {
 
     const query = `
       INSERT INTO telemetry_logs
-      (device_id, timestamp, temp, humidity, soil_moisture, water_level_cm, water_error, pump_active, pan, tilt)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      (device_id, timestamp, temp, humidity, soil_moisture_1, soil_moisture_2, water_level_cm, water_error, pump_active, pan, tilt)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *;
     `;
 
@@ -90,7 +120,8 @@ app.post('/api/telemetry', async (req, res) => {
       data.timestamp || Math.floor(Date.now() / 1000),
       data.sensors.temp,
       data.sensors.humidity,
-      data.sensors.soil_moisture,
+      data.sensors.soil_moisture_1,
+      data.sensors.soil_moisture_2,
       data.sensors.water_level_cm,
       data.status.water_error,
       data.status.pump_active,
@@ -258,7 +289,7 @@ app.post('/api/move', async (req, res) => {
       });
     }
 
-    const espIp = "10.101.29.191";
+    const espIp = activeDevices[device_id];
 
     if (!espIp) {
       return res.status(404).json({
@@ -302,6 +333,61 @@ app.post('/api/move', async (req, res) => {
 });
 
 // ==========================================
+// ENDPOINT 6: POST /api/pump (Dla Aplikacji)
+// Ustawianie mocy pompy i ręczne podlewanie
+// ==========================================
+app.post('/api/pump', async (req, res) => {
+  try {
+    const { device_id = 'WATIR_01', power, duration } = req.body;
+
+    const espIp = activeDevices[device_id];
+
+    if (!espIp) {
+      return res.status(404).json({
+        status: 'error',
+        message: `Urządzenie o ID ${device_id} nie wysłało jeszcze telemetrii (IP nieznane).`
+      });
+    }
+
+    const payload = {};
+    if (power !== undefined) payload.power = power;
+    if (duration !== undefined) payload.duration = duration;
+
+    console.log(`➡️ Przekierowanie komendy pompy do ${device_id} na adres: http://${espIp}/api/pump`);
+
+    const response = await fetch(`http://${espIp}/api/pump`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      const espResponse = await response.json();
+      return res.status(200).json({
+        status: 'success',
+        message: 'Komenda pompy przekazana pomyślnie do ESP8266',
+        esp_response: espResponse
+      });
+    } else {
+      return res.status(response.status).json({
+        status: 'error',
+        message: 'ESP odrzuciło żądanie',
+        esp_status: response.status
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Błąd przesyłania do ESP:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: 'Błąd komunikacji z ESP. Upewnij się, że urządzenie jest uruchomione.'
+    });
+  }
+});
+
+// ==========================================
 // PROFIL ROŚLIN — pełny CRUD z pozycjami serw (X/Y)
 // Podstawa pod issue #25 i #28
 // ==========================================
@@ -328,6 +414,9 @@ function validatePlantProfile(data, requireAll = true) {
     errors.push('pan musi być liczbą w zakresie 0-180');
   if (data.tilt !== undefined && (typeof data.tilt !== 'number' || data.tilt < 0 || data.tilt > 180))
     errors.push('tilt musi być liczbą w zakresie 0-180');
+    
+  if (data.sensor !== undefined && (typeof data.sensor !== 'number' || (data.sensor !== 1 && data.sensor !== 2)))
+    errors.push('sensor musi mieć wartość 1 (G1) lub 2 (G2)');
 
   return errors;
 }
@@ -364,15 +453,16 @@ app.post('/api/plants', async (req, res) => {
     if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
     const result = await pool.query(
-      `INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms, pan, tilt)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      `INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms, pan, tilt, sensor)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [
         data.name,
         data.moisture_threshold,
         data.auto_watering ?? true,
         data.check_interval_ms ?? 10000,
         data.pan ?? 90,
-        data.tilt ?? 90
+        data.tilt ?? 90,
+        data.sensor ?? 1
       ]
     );
     res.status(201).json({ status: 'success', message: `Profil "${data.name}" został utworzony.`, data: result.rows[0] });
@@ -391,14 +481,15 @@ app.put('/api/plants/:id', async (req, res) => {
     if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
     const result = await pool.query(
-      `UPDATE plant_profiles 
-       SET name = $1, 
-           moisture_threshold = $2, 
-           auto_watering = $3, 
+      `UPDATE plant_profiles
+       SET name = $1,
+           moisture_threshold = $2,
+           auto_watering = $3,
            check_interval_ms = $4,
            pan = $5,
-           tilt = $6
-       WHERE id = $7 RETURNING *`,
+           tilt = $6,
+           sensor = $7
+       WHERE id = $8 RETURNING *`,
       [
         data.name,
         data.moisture_threshold,
@@ -406,6 +497,7 @@ app.put('/api/plants/:id', async (req, res) => {
         data.check_interval_ms ?? 10000,
         data.pan ?? 90,
         data.tilt ?? 90,
+        data.sensor ?? 1,
         id
       ]
     );
@@ -427,7 +519,7 @@ app.patch('/api/plants/:id', async (req, res) => {
     const errors = validatePlantProfile(data, false);
     if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
-    const allowed = ['name', 'moisture_threshold', 'auto_watering', 'check_interval_ms', 'pan', 'tilt'];
+    const allowed = ['name', 'moisture_threshold', 'auto_watering', 'check_interval_ms', 'pan', 'tilt', 'sensor'];
     const fields = Object.keys(data).filter(k => allowed.includes(k));
     if (fields.length === 0) return res.status(400).json({ status: 'error', message: 'Żadne z podanych pól nie jest dozwolone.' });
 
@@ -468,14 +560,16 @@ app.post('/api/plants/:id/apply', async (req, res) => {
 
     const profile = result.rows[0];
 
-    // Dodajemy pozycje serw (pan/tilt) do konfiguracji wysyłanej do ESP
+    // Dodajemy pozycje serw (pan/tilt) i identyfikator rośliny do konfiguracji wysyłanej do ESP
     const espConfig = {
       config: {
+        target_plant: parseInt(id) === 1 ? 1 : 2, // Mapujemy ID na 1 lub 2
         moisture_threshold: profile.moisture_threshold,
         auto_watering: profile.auto_watering,
         check_interval_ms: profile.check_interval_ms,
         pan: profile.pan,
-        tilt: profile.tilt
+        tilt: profile.tilt,
+        sensor: profile.sensor
       }
     };
 

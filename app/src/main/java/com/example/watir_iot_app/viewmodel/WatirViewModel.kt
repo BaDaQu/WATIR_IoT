@@ -11,6 +11,7 @@ import com.example.watir_iot_app.network.APIClients
 import com.example.watir_iot_app.network.WatirAPI
 import com.example.watir_iot_app.data.model.PlantProfile
 import com.example.watir_iot_app.data.model.PlantProfileRequest
+import com.example.watir_iot_app.data.model.PumpRequest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -156,6 +157,7 @@ class WatirViewModel : ViewModel() {
         moistureThreshold: Int,
         autoWatering: Boolean,
         checkIntervalMs: Int,
+        sensor: Int,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -168,7 +170,8 @@ class WatirViewModel : ViewModel() {
                         autoWatering,
                         checkIntervalMs,
                         90,
-                        90
+                        90,
+                        sensor
                     )
                     val response = api.createPlantProfile(req)
                     if (response.status == "success") {
@@ -189,6 +192,7 @@ class WatirViewModel : ViewModel() {
         moistureThreshold: Int,
         autoWatering: Boolean,
         checkIntervalMs: Int,
+        sensor: Int,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -205,7 +209,8 @@ class WatirViewModel : ViewModel() {
                         autoWatering,
                         checkIntervalMs,
                         panToSave,
-                        tiltToSave
+                        tiltToSave,
+                        sensor
                     )
                     val response = api.updatePlantProfile(id, req)
                     if (response.status == "success") {
@@ -263,7 +268,8 @@ class WatirViewModel : ViewModel() {
                         auto_watering = existing.auto_watering,
                         check_interval_ms = existing.check_interval_ms,
                         pan = currentX,
-                        tilt = currentY
+                        tilt = currentY,
+                        sensor = existing.sensor
                     )
                     val response = api.updatePlantProfile(id, req)
                     if (response.status == "success") {
@@ -294,5 +300,22 @@ class WatirViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    fun triggerPump(power: Int, duration: Int = 3000) {
+        watirAPI?.let { api ->
+            viewModelScope.launch {
+                try {
+                    api.triggerPump(PumpRequest(power = power, duration = duration))
+                    println("Pump command sent successfully!")
+                } catch (e: Exception) {
+                    println("Failed to send pump command: ${e.message}")
+                }
+            }
+        } ?: println("Not connected to server")
+    }
+
+    fun setPumpPower(power: Int){
+        triggerPump(power, 0)
     }
 }
