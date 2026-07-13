@@ -8,6 +8,8 @@
     <string name="temp">Temperatura</string>
     <string name="humidity_air">Wilgotność powietrza</string>
     <string name="humidity_soil">Wilgotność gleby</string>
+    <string name="humidity_soil_1">Wilgotność gleby G1</string>
+    <string name="humidity_soil_2">Wilgotność gleby G2</string>
     <string name="water_level">Poziom wody</string>
     <string name="pump_status">Stan Pompy</string>
     <string name="pump_working">Pracuje</string>
@@ -48,4 +50,10 @@
     <string name="settings_language">Język</string>
     <string name="lang_pl">Polski</string>
     <string name="lang_en">Angielski</string>
+    <string name="settings_climate_title">Klimat Systemu (BME280)</string>
+    <string name="settings_climate_min_temp">Min Temp (°C)</string>
+    <string name="settings_climate_max_temp">Max Temp (°C)</string>
+    <string name="settings_climate_min_hum">Min Wilg. (%)</string>
+    <string name="settings_climate_save">Zapisz parametry klimatu</string>
+    <string name="settings_pump_power_label">Moc Pompy (%)</string>
 </resources>

@@ -21,14 +21,17 @@ class WatirViewModel : ViewModel() {
 
     private var watirAPI: WatirAPI? = null
 
-    private val _telemetryHistory = mutableStateOf(TelemetryHistoryResponse())
-    val telemetryHistory: State<TelemetryHistoryResponse> = _telemetryHistory
-
-    private val _plantProfiles = mutableStateOf<List<PlantProfile>>(emptyList())
-    val plantProfiles: State<List<PlantProfile>> = _plantProfiles
-
     private val _isConnected = mutableStateOf(false)
     val isConnected: State<Boolean> = _isConnected
+
+    private val _plantProfiles = mutableStateOf<List<com.example.watir_iot_app.data.model.PlantProfile>>(emptyList())
+    val plantProfiles: State<List<com.example.watir_iot_app.data.model.PlantProfile>> = _plantProfiles
+
+    private val _telemetryHistory = mutableStateOf(com.example.watir_iot_app.data.model.TelemetryHistoryResponse(status = "success", data = emptyList()))
+    val telemetryHistory: State<com.example.watir_iot_app.data.model.TelemetryHistoryResponse> = _telemetryHistory
+
+    private val _globalSettings = mutableStateOf<com.example.watir_iot_app.data.model.GlobalSettings?>(null)
+    val globalSettings: State<com.example.watir_iot_app.data.model.GlobalSettings?> = _globalSettings
 
     // Settings
     private val _isDarkMode = mutableStateOf(false)
@@ -54,24 +57,30 @@ class WatirViewModel : ViewModel() {
     // Krok serwa w stopniach (identyczny jak w firmware)
     private val servoStep = 10
 
-    // Sterowanie strzałkami — każde kliknięcie = jeden krok o 5°
-    fun moveServo(direction: String) {
-        when (direction) {
-            "lewo"  -> currentX = (currentX + servoStep).coerceIn(0, 180)
-            "prawo" -> currentX = (currentX - servoStep).coerceIn(0, 180)
-            "gora"  -> currentY = (currentY - servoStep).coerceIn(0, 180)
-            "dol"   -> currentY = (currentY + servoStep).coerceIn(0, 180)
-        }
-
-        val axis = if (direction == "lewo" || direction == "prawo") "X" else "Y"
-        val value = if (axis == "X") currentX else currentY
-
+    // Sterowanie ciągłe przytrzymaniem strzałki
+    fun startContinuousMove(direction: String) {
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
-                    api.sendMove(MoveRequest(axis = axis, value = value))
+                    api.sendDirection(DirectionRequest(direction = direction))
                 } catch (e: Exception) {
-                    println("Failed to send move: ${e.message}")
+                    println("Failed to start continuous move: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun stopContinuousMove() {
+        watirAPI?.let { api ->
+            viewModelScope.launch {
+                try {
+                    val response = api.sendDirection(DirectionRequest(direction = "stop"))
+                    // Aktualizuj lokalne pozycje po zakończeniu ruchu
+                    println("stopContinuousMove response: ${response.esp_response}")
+                    response.esp_response?.pan?.let { currentX = it; println("Updated currentX to $it") }
+                    response.esp_response?.tilt?.let { currentY = it; println("Updated currentY to $it") }
+                } catch (e: Exception) {
+                    println("Failed to stop continuous move: ${e.message}")
                 }
             }
         }
@@ -84,6 +93,7 @@ class WatirViewModel : ViewModel() {
                 watirAPI = api
                 _isConnected.value = true
                 fetchPlants()
+                fetchGlobalSettings()
                 startLiveUpdates()
 
             } catch (e: Exception) {
@@ -131,6 +141,43 @@ class WatirViewModel : ViewModel() {
         }
     }
 
+    fun fetchGlobalSettings() {
+        watirAPI?.let { api ->
+            viewModelScope.launch {
+                try {
+                    val response = api.getGlobalSettings()
+                    if (response.status == "success") {
+                        _globalSettings.value = response.data
+                    }
+                } catch (e: Exception) {
+                    println("Failed to fetch global settings: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun updateGlobalSettings(
+        request: com.example.watir_iot_app.data.model.GlobalSettingsRequest,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        watirAPI?.let { api ->
+            viewModelScope.launch {
+                try {
+                    val response = api.updateGlobalSettings(request)
+                    if (response.status == "success") {
+                        _globalSettings.value = response.data
+                        onSuccess(response.message ?: "Zapisano pomyślnie")
+                    } else {
+                        onError(response.message ?: "Błąd zapisu")
+                    }
+                } catch (e: Exception) {
+                    onError(e.message ?: "Unknown error")
+                }
+            }
+        }
+    }
+
     fun applyPlantProfile(
         id: Int,
         onSuccess: (String) -> Unit,
@@ -158,20 +205,22 @@ class WatirViewModel : ViewModel() {
         autoWatering: Boolean,
         checkIntervalMs: Int,
         sensor: Int,
+        pumpPower: Int,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
-                    val req = PlantProfileRequest(
+                    val req = com.example.watir_iot_app.data.model.PlantProfileRequest(
                         name,
                         moistureThreshold,
                         autoWatering,
                         checkIntervalMs,
                         90,
                         90,
-                        sensor
+                        sensor,
+                        pumpPower
                     )
                     val response = api.createPlantProfile(req)
                     if (response.status == "success") {
@@ -193,6 +242,7 @@ class WatirViewModel : ViewModel() {
         autoWatering: Boolean,
         checkIntervalMs: Int,
         sensor: Int,
+        pumpPower: Int,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -203,14 +253,15 @@ class WatirViewModel : ViewModel() {
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
-                    val req = PlantProfileRequest(
+                    val req = com.example.watir_iot_app.data.model.PlantProfileRequest(
                         name,
                         moistureThreshold,
                         autoWatering,
                         checkIntervalMs,
                         panToSave,
                         tiltToSave,
-                        sensor
+                        sensor,
+                        pumpPower
                     )
                     val response = api.updatePlantProfile(id, req)
                     if (response.status == "success") {
@@ -269,12 +320,20 @@ class WatirViewModel : ViewModel() {
                         check_interval_ms = existing.check_interval_ms,
                         pan = currentX,
                         tilt = currentY,
-                        sensor = existing.sensor
+                        sensor = existing.sensor,
+                        pump_power = existing.pump_power
                     )
                     val response = api.updatePlantProfile(id, req)
                     if (response.status == "success") {
+                        // Automatycznie wyślij tę zaktualizowaną konfigurację do Arduino
+                        try {
+                            api.applyPlantProfile(id)
+                        } catch (e: Exception) {
+                            println("Zapisano w bazie, ale nie udało się zaktualizować ESP32 na żywo: ${e.message}")
+                        }
+                        
                         fetchPlants()
-                        onSuccess("Position ${currentX}/${currentY} saved for ${existing.name}")
+                        onSuccess("Position ${currentX}/${currentY} saved and applied for ${existing.name}")
                     } else {
                         onError("Failed to save position: ${response.message}")
                     }
@@ -285,28 +344,13 @@ class WatirViewModel : ViewModel() {
         } ?: onError("Not connected to server")
     }
 
-    fun sendMove(axis: String, value: Int) {
-        val now = System.currentTimeMillis()
-        val lastSent = lastSendTimestamps[axis] ?: 0L
-        if (now - lastSent < throttleIntervalMs) return
-        lastSendTimestamps[axis] = now
+    // (usunięto ręczną pętlę throttle i sendMove, ponieważ firmware przejmuje ruch ciągły)
 
+    fun triggerPump(power: Int, duration: Int = 3000, pan: Int? = null, tilt: Int? = null) {
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
-                    api.sendMove(MoveRequest(axis = axis, value = value))
-                } catch (e: Exception) {
-                    println("Failed to send move command: ${e.message}")
-                }
-            }
-        }
-    }
-
-    fun triggerPump(power: Int, duration: Int = 3000) {
-        watirAPI?.let { api ->
-            viewModelScope.launch {
-                try {
-                    api.triggerPump(PumpRequest(power = power, duration = duration))
+                    api.triggerPump(PumpRequest(power = power, duration = duration, pan = pan, tilt = tilt))
                     println("Pump command sent successfully!")
                 } catch (e: Exception) {
                     println("Failed to send pump command: ${e.message}")

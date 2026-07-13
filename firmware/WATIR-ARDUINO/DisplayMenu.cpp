@@ -317,7 +317,9 @@ void runLcdConfigMenu() {
   delay(1500);
 
   watirConfig.p1_moisture = constrain(enterNumber("Gleba 1 (%) min:", watirConfig.p1_moisture, 2), 1, 99);
+  strcpy(watirConfig.p1_name, "Offline 1");
   watirConfig.p2_moisture = constrain(enterNumber("Gleba 2 (%) min:", watirConfig.p2_moisture, 2), 1, 99);
+  strcpy(watirConfig.p2_name, "Offline 2");
   
   watirConfig.p1_pump_power = constrain(enterNumber("Moc Pompy R1(%):", watirConfig.p1_pump_power, 2), 1, 99);
   watirConfig.p2_pump_power = constrain(enterNumber("Moc Pompy R2(%):", watirConfig.p2_pump_power, 2), 1, 99);

@@ -73,14 +73,14 @@ fun DashboardScreen(viewModel: WatirViewModel) {
             modifier = Modifier.fillMaxWidth()
         )
         SensorCard(
-            title = "Wilgotność gleby G1",
+            title = stringResource(R.string.humidity_soil_1),
             value = soilMoisture1Text,
             icon = Icons.Default.Eco,
             iconTint = watirGreen,
             modifier = Modifier.fillMaxWidth()
         )
         SensorCard(
-            title = "Wilgotność gleby G2",
+            title = stringResource(R.string.humidity_soil_2),
             value = soilMoisture2Text,
             icon = Icons.Default.Eco,
             iconTint = watirGreen,

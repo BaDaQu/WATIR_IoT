@@ -46,11 +46,16 @@ static int mocPompy = 70;  // Domyślnie 70% — bezpieczne dla zasilacza 3A
 // KONWERSJA PROCENT → PWM (0–255)
 // =============================================
 static int procentNaPWM(int procent) {
+  // Użytkownik przesyła moc z zakresu 0-100 (lub 1-100)
   procent = constrain(procent, 0, 100);
-  // Ograniczenie sprzętowe na poziomie 70% rzeczywistego cyklu pracy PWM.
-  // Celem jest ochrona współdzielonego zasilacza 12V/3A przed wystąpieniem spadku napięcia (brownout)
-  // spowodowanego nagłym poborem prądu przez silnik.
-  return map(procent, 0, 100, 0, 178);
+  
+  // Ograniczenie sprzętowe:
+  // 0-1% -> 45% (min. moc do ruszenia wirnika)
+  // 100% -> 70% (bezpieczny prąd dla zasilacza współdzielonego)
+  int rzeczywistyProcent = map(procent, 0, 100, 45, 70);
+  
+  // Zwracamy PWM (0-255) z wyliczonego przedziału 45-70%
+  return map(rzeczywistyProcent, 0, 100, 0, 255);
 }
 
 // =============================================
