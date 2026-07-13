@@ -106,21 +106,21 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Czujnik gleby", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.soil_sensor_label), style = MaterialTheme.typography.labelLarge)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         androidx.compose.material3.RadioButton(
                             selected = sensorInput == 1,
                             onClick = { sensorInput = 1 },
                             colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = watirNavy)
                         )
-                        Text("Czujnik 1 (G1)")
+                        Text(stringResource(R.string.sensor_1_g1))
                         Spacer(modifier = Modifier.width(16.dp))
                         androidx.compose.material3.RadioButton(
                             selected = sensorInput == 2,
                             onClick = { sensorInput = 2 },
                             colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = watirNavy)
                         )
-                        Text("Czujnik 2 (G2)")
+                        Text(stringResource(R.string.sensor_2_g2))
                     }
                 }
             },
@@ -138,11 +138,11 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                                 checkIntervalMs = interval,
                                 sensor = sensorInput,
                                 onSuccess = {
-                                    Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.success_prefix, it), Toast.LENGTH_SHORT).show()
                                     showDialog = false
                                 },
                                 onError = {
-                                    Toast.makeText(context, "Błąd: $it", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.error_prefix, it), Toast.LENGTH_SHORT).show()
                                 }
                             )
                         } else {
@@ -153,11 +153,11 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                                 checkIntervalMs = interval,
                                 sensor = sensorInput,
                                 onSuccess = {
-                                    Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.success_prefix, it), Toast.LENGTH_SHORT).show()
                                     showDialog = false
                                 },
                                 onError = {
-                                    Toast.makeText(context, "Błąd: $it", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.error_prefix, it), Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
@@ -325,10 +325,10 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                         viewModel.deletePlantProfile(
                             id = plant.id,
                             onSuccess = {
-                                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.success_prefix, it), Toast.LENGTH_SHORT).show()
                                 selectedPlant = null
                             },
-                            onError = { Toast.makeText(context, "Błąd: $it", Toast.LENGTH_SHORT).show() }
+                            onError = { Toast.makeText(context, context.getString(R.string.error_prefix, it), Toast.LENGTH_SHORT).show() }
                         )
                     }
                 }) {
@@ -345,10 +345,10 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                     viewModel.applyPlantProfile(
                         id = plant.id,
                         onSuccess = { msg ->
-                            Toast.makeText(context, "Sukces: $msg", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.success_prefix, msg), Toast.LENGTH_SHORT).show()
                         },
                         onError = { err ->
-                            Toast.makeText(context, "Błąd: $err", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.error_prefix, err), Toast.LENGTH_SHORT).show()
                         }
                     )
                 }

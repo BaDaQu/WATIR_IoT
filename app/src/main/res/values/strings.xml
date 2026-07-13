@@ -8,6 +8,8 @@
     <string name="temp">Temperature</string>
     <string name="humidity_air">Air Humidity</string>
     <string name="humidity_soil">Soil Moisture</string>
+    <string name="soil_moisture_g1">Soil Moisture G1</string>
+    <string name="soil_moisture_g2">Soil Moisture G2</string>
     <string name="water_level">Water Level</string>
     <string name="pump_status">Pump Status</string>
     <string name="pump_working">Working</string>
@@ -25,6 +27,11 @@
     <string name="joystick_calibrate_hint">Select plant for calibration</string>
     <string name="joystick_water_button">Water</string>
     <string name="joystick_save_pos_button">Save Position</string>
+    <string name="pump_power_label">Pump Power: %1$d%%</string>
+    <string name="direction_up">Up</string>
+    <string name="direction_down">Down</string>
+    <string name="direction_left">Left</string>
+    <string name="direction_right">Right</string>
     <string name="settings_server_ip">Server IP</string>
     <string name="settings_connect">Connect</string>
     <string name="settings_status_connected">Status: Connected</string>
@@ -39,6 +46,9 @@
     <string name="settings_name_label">Name</string>
     <string name="settings_moisture_label">Moisture Threshold (%)</string>
     <string name="settings_interval_label">Check Interval (ms)</string>
+    <string name="soil_sensor_label">Soil Sensor</string>
+    <string name="sensor_1_g1">Sensor 1 (G1)</string>
+    <string name="sensor_2_g2">Sensor 2 (G2)</string>
     <string name="settings_save">Save</string>
     <string name="settings_cancel">Cancel</string>
     <string name="splash_loading">Loading WATIR_IOT app</string>
@@ -48,4 +58,6 @@
     <string name="settings_language">Language</string>
     <string name="lang_pl">Polish</string>
     <string name="lang_en">English</string>
+    <string name="error_prefix">Error: %1$s</string>
+    <string name="success_prefix">Success: %1$s</string>
 </resources>
