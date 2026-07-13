@@ -8,6 +8,8 @@
     <string name="temp">Temperatura</string>
     <string name="humidity_air">Wilgotność powietrza</string>
     <string name="humidity_soil">Wilgotność gleby</string>
+    <string name="soil_moisture_g1">Wilgotność gleby G1</string>
+    <string name="soil_moisture_g2">Wilgotność gleby G2</string>
     <string name="water_level">Poziom wody</string>
     <string name="pump_status">Stan Pompy</string>
     <string name="pump_working">Pracuje</string>
@@ -25,6 +27,11 @@
     <string name="joystick_calibrate_hint">Wybierz roślinę do kalibracji</string>
     <string name="joystick_water_button">Podlej</string>
     <string name="joystick_save_pos_button">Zapisz pozycję</string>
+    <string name="pump_power_label">Moc pompy: %1$d%%</string>
+    <string name="direction_up">Góra</string>
+    <string name="direction_down">Dół</string>
+    <string name="direction_left">Lewo</string>
+    <string name="direction_right">Prawo</string>
     <string name="settings_server_ip">IP Serwera</string>
     <string name="settings_connect">Połącz</string>
     <string name="settings_status_connected">Status: Połączono</string>
@@ -39,6 +46,9 @@
     <string name="settings_name_label">Nazwa</string>
     <string name="settings_moisture_label">Próg wilgotności (%)</string>
     <string name="settings_interval_label">Interwał sprawdzania (ms)</string>
+    <string name="soil_sensor_label">Czujnik gleby</string>
+    <string name="sensor_1_g1">Czujnik 1 (G1)</string>
+    <string name="sensor_2_g2">Czujnik 2 (G2)</string>
     <string name="settings_save">Zapisz</string>
     <string name="settings_cancel">Anuluj</string>
     <string name="splash_loading">Ładowanie aplikacji WATIR_IOT</string>
@@ -48,4 +58,6 @@
     <string name="settings_language">Język</string>
     <string name="lang_pl">Polski</string>
     <string name="lang_en">Angielski</string>
+    <string name="error_prefix">Błąd: %1$s</string>
+    <string name="success_prefix">Sukces: %1$s</string>
 </resources>
