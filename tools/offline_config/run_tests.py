@@ -10,7 +10,7 @@ def get_port():
         print("Nie znaleziono Arduino!")
         sys.exit(1)
         
-    # Priorytetyzuj porty USB (Arduino zwykle siedzi na ttyACM lub ttyUSB)
+    # Priorytetyzuj porty USB
     for p in ports:
         if "ACM" in p or "USB" in p:
             return p
