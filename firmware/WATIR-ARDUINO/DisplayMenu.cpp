@@ -24,7 +24,7 @@ void konfigurujWyswietlacz() {
   
   lcd.init();
   delay(50);
-  lcd.init(); // Podwójny init pomaga powrócić z trybu 4-bit na niektórych tanich wyświetlaczach
+  lcd.init(); 
   lcd.backlight();
   lcd.clear();
 }
@@ -62,7 +62,7 @@ static void enterString(const char* prompt, char* buffer, int maxLen, const char
           lcd.print(' ');
         }
       } else {
-        lcd.print(' '); // Wyczyszczenie reszty linii, aby uniknąć migotania i śmieci (pikselozy)
+        lcd.print(' '); // Wyczyszczenie reszty linii, aby uniknąć migotania i śmieci
       }
     }
     
@@ -75,7 +75,7 @@ static void enterString(const char* prompt, char* buffer, int maxLen, const char
     if (act != JOY_NONE) {
       if (act == JOY_CLICK) {
         waitRelease();
-        break; // Zatwierdzenie
+        break;
       }
       else if (act == JOY_LEFT) {
         if (cursorIdx > 0) cursorIdx--;
