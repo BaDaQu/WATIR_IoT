@@ -261,7 +261,7 @@ void setup() {
     watirConfig.p2_pump_power = 70;
     watirConfig.min_temp_block = 5;
     watirConfig.max_temp_force = 35;
-    watirConfig.min_air_humidity_force = 40; // Przykładowa domyślna wartość
+    watirConfig.min_air_humidity_force = 40;
     watirConfig.auto_watering = true;
     watirConfig.check_interval_ms = 10000;
     EEPROM.put(0, watirConfig);
