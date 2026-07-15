@@ -17,17 +17,34 @@ const activeDevices = {};
 const udpServer = dgram.createSocket('udp4');
 
 udpServer.on('message', (msg, rinfo) => {
-  const message = msg.toString();
-  if (message.startsWith('WATIR_DISCOVER_CLIENT:')) {
-    const deviceId = message.split(':')[1];
-    activeDevices[deviceId] = rinfo.address;
-    console.log(`[UDP] Odkryto urządzenie ${deviceId} pod adresem IP: ${rinfo.address}`);
-    
-    // Odpowiedz serwera do klienta (Unicast)
-    const reply = Buffer.from('WATIR_DISCOVER_SERVER');
-    udpServer.send(reply, 3000, rinfo.address, (err) => {
-      if (err) console.error('[UDP] Błąd podczas wysyłania odpowiedzi:', err);
-    });
+  const message = msg.toString().trim();
+  
+  try {
+    if (message.startsWith('{')) {
+      const data = JSON.parse(message);
+      if (data.device_id && data.ip) {
+        activeDevices[data.device_id] = data.ip;
+        console.log(`[UDP] Odkryto urządzenie ${data.device_id} pod adresem IP (z JSON): ${data.ip}`);
+        
+        // Odpowiedz serwera do klienta (Unicast)
+        const reply = Buffer.from('WATIR_DISCOVER_SERVER');
+        udpServer.send(reply, 3000, rinfo.address, (err) => {
+          if (err) console.error('[UDP] Błąd podczas wysyłania odpowiedzi:', err);
+        });
+      }
+    } else if (message.startsWith('WATIR_DISCOVER_CLIENT:')) {
+      const deviceId = message.split(':')[1];
+      activeDevices[deviceId] = rinfo.address;
+      console.log(`[UDP] Odkryto urządzenie ${deviceId} pod adresem IP (z pakietu): ${rinfo.address}`);
+      
+      // Odpowiedz serwera do klienta (Unicast)
+      const reply = Buffer.from('WATIR_DISCOVER_SERVER');
+      udpServer.send(reply, 3000, rinfo.address, (err) => {
+        if (err) console.error('[UDP] Błąd podczas wysyłania odpowiedzi:', err);
+      });
+    }
+  } catch (err) {
+    console.error('[UDP] Błąd parsowania wiadomości discovery:', err.message);
   }
 });
 
@@ -299,7 +316,7 @@ app.post('/api/move', async (req, res) => {
     }
 
     console.log(`➡️ Przekierowanie komendy do ${device_id} na adres: http://${espIp}/api/move`);
-    
+
     const payload = direction ? { direction } : { axis, value };
 
     const response = await fetch(`http://${espIp}/api/move`, {
@@ -418,7 +435,7 @@ function validatePlantProfile(data, requireAll = true) {
     errors.push('pan musi być liczbą w zakresie 0-180');
   if (data.tilt !== undefined && (typeof data.tilt !== 'number' || data.tilt < 0 || data.tilt > 180))
     errors.push('tilt musi być liczbą w zakresie 0-180');
-    
+
   if (data.sensor !== undefined && (typeof data.sensor !== 'number' || (data.sensor !== 1 && data.sensor !== 2)))
     errors.push('sensor musi mieć wartość 1 (G1) lub 2 (G2)');
 
@@ -549,14 +566,14 @@ app.delete('/api/plants/:id', async (req, res) => {
     const { id } = req.params;
     const result = await pool.query('DELETE FROM plant_profiles WHERE id = $1 RETURNING *', [id]);
     if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
-    
+
     const deletedProfile = result.rows[0];
-    
+
     // Próba poinformowania ESP32 o usunięciu profilu, aby przestało podlewać
     const device_id = 'WATIR_01'; // Domyślne urządzenie
     const espIp = activeDevices[device_id];
     let espNotified = false;
-    
+
     if (espIp) {
       const clearConfig = {
         config: {
@@ -565,7 +582,7 @@ app.delete('/api/plants/:id', async (req, res) => {
           moisture_threshold: 0 // Ważne: ustawienie na 0 wyłącza automatyczne podlewanie
         }
       };
-      
+
       try {
         await fetch(`http://${espIp}/api/config`, {
           method: 'POST',
@@ -579,10 +596,10 @@ app.delete('/api/plants/:id', async (req, res) => {
       }
     }
 
-    res.status(200).json({ 
-      status: 'success', 
-      message: `Profil "${deletedProfile.name}" został usunięty.${espNotified ? ' Pomyślnie wyczyszczono na ESP32.' : ' ESP32 aktualnie niedostępne (zostanie zaktualizowane przy najbliższej synchronizacji).'}`, 
-      deleted: deletedProfile 
+    res.status(200).json({
+      status: 'success',
+      message: `Profil "${deletedProfile.name}" został usunięty.${espNotified ? ' Pomyślnie wyczyszczono na ESP32.' : ' ESP32 aktualnie niedostępne (zostanie zaktualizowane przy najbliższej synchronizacji).'}`,
+      deleted: deletedProfile
     });
   } catch (error) {
     console.error(error);
@@ -690,7 +707,7 @@ app.get('/api/settings', async (req, res) => {
 app.post('/api/settings', async (req, res) => {
   try {
     const { min_temp_block, max_temp_force, min_air_humidity_force } = req.body;
-    
+
     // Zapis w bazie
     const result = await pool.query(
       `UPDATE global_settings 
@@ -716,7 +733,7 @@ app.post('/api/settings', async (req, res) => {
           min_air_humidity_force: settings.min_air_humidity_force
         }
       };
-      
+
       try {
         await fetch(`http://${espIp}/api/config`, {
           method: 'POST',
@@ -730,9 +747,9 @@ app.post('/api/settings', async (req, res) => {
       }
     }
 
-    res.status(200).json({ 
-      status: 'success', 
-      message: 'Ustawienia globalne zapisane.', 
+    res.status(200).json({
+      status: 'success',
+      message: 'Ustawienia globalne zapisane.',
       data: settings,
       esp_sent: espSent
     });

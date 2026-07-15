@@ -30,7 +30,7 @@
 // KONFIGURACJA BACKENDU (Auto-Discovery)
 // =============================================
 // Adres IP serwera jest wykrywany automatycznie przy użyciu protokołu UDP.
-String backendHost         = "10.93.136.4";
+String backendHost         = "";
 const int   backendPort    = 3000;
 const char* telemetryPath  = "/api/telemetry";
 const char* deviceId       = "WATIR_01";
@@ -228,7 +228,7 @@ void setup() {
   delay(1000);
   
   Serial.println("\n\n==================================================");
-  Serial.println("=== WERSJA WATIR: FIX TELEMETRII I RESETU EEPROM ===");
+  Serial.println("===              URUCHAMIANIE WATIR                ===");
   Serial.println("==================================================\n");
 
   matrycaLED.begin();
@@ -976,7 +976,8 @@ void sprawdzOdkrywanieSerwera() {
     Serial.println("[UDP] Szukam serwera Node.js...");
     // UDP Broadcast na 255.255.255.255:3000
     udp.beginPacket(IPAddress(255, 255, 255, 255), 3000);
-    String payload = "WATIR_DISCOVER_CLIENT:" + String(deviceId);
+    String myIp = WiFi.localIP().toString();
+    String payload = "{\"device_id\":\"" + String(deviceId) + "\",\"ip\":\"" + myIp + "\"}";
     udp.print(payload);
     udp.endPacket();
   }

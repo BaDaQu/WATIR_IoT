@@ -143,7 +143,7 @@ void runLcdConfigMenu() {
   lcd.clear();
   lcd.print("1. Skanuj WiFi");
   lcd.setCursor(0, 1);
-  lcd.print("2. Uzyj EEPROM");
+  lcd.print("2. Tryb OFFLINE");
   
   int choice = 1; // 1 = WiFi, 2 = EEPROM
   bool redraw = true;

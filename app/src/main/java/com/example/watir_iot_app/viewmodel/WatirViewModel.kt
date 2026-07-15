@@ -346,7 +346,8 @@ class WatirViewModel : ViewModel() {
 
     // (usunięto ręczną pętlę throttle i sendMove, ponieważ firmware przejmuje ruch ciągły)
 
-    fun triggerPump(power: Int, duration: Int = 3000, pan: Int? = null, tilt: Int? = null) {
+    fun triggerPump(power: Int, duration: Int? = 3000, pan: Int? = null, tilt: Int? = null) {
+
         watirAPI?.let { api ->
             viewModelScope.launch {
                 try {
@@ -360,6 +361,6 @@ class WatirViewModel : ViewModel() {
     }
 
     fun setPumpPower(power: Int){
-        triggerPump(power, 0)
+        triggerPump(power, null)
     }
 }
