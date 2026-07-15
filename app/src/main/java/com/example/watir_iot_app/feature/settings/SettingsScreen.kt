@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -43,8 +45,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.LaunchedEffect
 import com.example.watir_iot_app.R
 import com.example.watir_iot_app.data.model.PlantProfile
+import com.example.watir_iot_app.data.model.GlobalSettingsRequest
 import com.example.watir_iot_app.viewmodel.WatirViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,6 +61,12 @@ fun SettingsScreen(viewModel: WatirViewModel) {
     var expanded by remember { mutableStateOf(false) }
     var selectedPlant by remember { mutableStateOf<PlantProfile?>(null) }
 
+    LaunchedEffect(plants) {
+        selectedPlant?.let { current ->
+            selectedPlant = plants.find { it.id == current.id } ?: current
+        }
+    }
+
     var showDialog by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
     var editId by remember { mutableStateOf(0) }
@@ -65,9 +75,23 @@ fun SettingsScreen(viewModel: WatirViewModel) {
     var thresholdInput by remember { mutableStateOf("") }
     var intervalInput by remember { mutableStateOf("") }
     var sensorInput by remember { mutableStateOf(1) }
+    var pumpPowerInput by remember { mutableStateOf("70") }
 
     val isDarkMode by viewModel.isDarkMode
     val currentLang by viewModel.language
+
+    val globalSettings by viewModel.globalSettings
+    var minTempInput by remember { mutableStateOf("5") }
+    var maxTempInput by remember { mutableStateOf("35") }
+    var minHumidityInput by remember { mutableStateOf("30") }
+
+    LaunchedEffect(globalSettings) {
+        globalSettings?.let {
+            minTempInput = it.min_temp_block.toString()
+            maxTempInput = it.max_temp_force.toString()
+            minHumidityInput = it.min_air_humidity_force.toString()
+        }
+    }
 
     val watirNavy = Color(0xFF102A43)
     val watirBlue = Color(0xFF2EB4E6)
@@ -122,6 +146,13 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                         )
                         Text(stringResource(R.string.sensor_2_g2))
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = pumpPowerInput,
+                        onValueChange = { pumpPowerInput = it },
+                        label = { Text(stringResource(R.string.settings_pump_power_label)) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
@@ -129,6 +160,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                     onClick = {
                         val threshold = thresholdInput.toIntOrNull() ?: 50
                         val interval = intervalInput.toIntOrNull() ?: 10000
+                        val power = pumpPowerInput.toIntOrNull() ?: 70
                         if (isEditing) {
                             viewModel.updatePlantProfile(
                                 id = editId,
@@ -137,6 +169,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                                 autoWatering = true,
                                 checkIntervalMs = interval,
                                 sensor = sensorInput,
+                                pumpPower = power,
                                 onSuccess = {
                                     Toast.makeText(context, context.getString(R.string.success_prefix, it), Toast.LENGTH_SHORT).show()
                                     showDialog = false
@@ -152,6 +185,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                                 autoWatering = true,
                                 checkIntervalMs = interval,
                                 sensor = sensorInput,
+                                pumpPower = power,
                                 onSuccess = {
                                     Toast.makeText(context, context.getString(R.string.success_prefix, it), Toast.LENGTH_SHORT).show()
                                     showDialog = false
@@ -176,7 +210,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
         )
     }
 
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         
         Text(text = stringResource(R.string.nav_settings), style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
@@ -265,6 +299,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                 thresholdInput = ""
                 intervalInput = "10000"
                 sensorInput = 1
+                pumpPowerInput = "70"
                 showDialog = true
             }) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.settings_add_profile))
@@ -315,6 +350,7 @@ fun SettingsScreen(viewModel: WatirViewModel) {
                         thresholdInput = plant.moisture_threshold.toString()
                         intervalInput = plant.check_interval_ms.toString()
                         sensorInput = plant.sensor
+                        pumpPowerInput = plant.pump_power.toString()
                         showDialog = true
                     }
                 }) {
@@ -358,6 +394,53 @@ fun SettingsScreen(viewModel: WatirViewModel) {
             shape = MaterialTheme.shapes.medium
         ) {
             Text(stringResource(R.string.settings_apply_esp), fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(stringResource(R.string.settings_climate_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = minTempInput,
+                onValueChange = { minTempInput = it },
+                label = { Text(stringResource(R.string.settings_climate_min_temp)) },
+                modifier = Modifier.weight(1f)
+            )
+            OutlinedTextField(
+                value = maxTempInput,
+                onValueChange = { maxTempInput = it },
+                label = { Text(stringResource(R.string.settings_climate_max_temp)) },
+                modifier = Modifier.weight(1f)
+            )
+            OutlinedTextField(
+                value = minHumidityInput,
+                onValueChange = { minHumidityInput = it },
+                label = { Text(stringResource(R.string.settings_climate_min_hum)) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = {
+                val minTemp = minTempInput.toIntOrNull() ?: 5
+                val maxTemp = maxTempInput.toIntOrNull() ?: 35
+                val minHum = minHumidityInput.toIntOrNull() ?: 30
+                viewModel.updateGlobalSettings(
+                    GlobalSettingsRequest(minTemp, maxTemp, minHum),
+                    onSuccess = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() },
+                    onError = { Toast.makeText(context, "Błąd: $it", Toast.LENGTH_SHORT).show() }
+                )
+            },
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Text(stringResource(R.string.settings_climate_save), fontWeight = FontWeight.Bold)
         }
     }
 }

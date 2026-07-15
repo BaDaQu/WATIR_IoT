@@ -23,7 +23,7 @@ interface WatirAPI {
     suspend fun sendMove(@Body request: MoveRequest)
 
     @POST("api/move")
-    suspend fun sendDirection(@Body request: DirectionRequest)
+    suspend fun sendDirection(@Body request: DirectionRequest): com.example.watir_iot_app.data.model.DirectionResponse
 
     @GET("api/plants")
     suspend fun getPlants(): PlantProfileListResponse
@@ -42,4 +42,10 @@ interface WatirAPI {
 
     @POST("api/pump")
     suspend fun triggerPump(@Body request: PumpRequest)
+
+    @GET("api/settings")
+    suspend fun getGlobalSettings(): com.example.watir_iot_app.data.model.GlobalSettingsResponse
+
+    @POST("api/settings")
+    suspend fun updateGlobalSettings(@Body request: com.example.watir_iot_app.data.model.GlobalSettingsRequest): com.example.watir_iot_app.data.model.GlobalSettingsResponse
 }

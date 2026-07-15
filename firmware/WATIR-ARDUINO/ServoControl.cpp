@@ -14,9 +14,9 @@
 // Piny dla ramienia robotycznego
 const int pinSerwo1 = 9; 
 const int pinSerwo2 = 6; 
-const int pinJoyX = A3;
-const int pinJoyY = A2;
-const int pinJoyBtn = 2; 
+const int pinJoyX = A2;
+const int pinJoyY = A3;
+const int pinJoyBtn = 2; // Dodano pin dla przycisku
 
 Servo serwoX; // Serwo do ruchu lewo/prawo
 Servo serwoY; // Serwo do ruchu góra/dół
@@ -56,14 +56,30 @@ void konfigurujSerwa() {
 // Zapis aktualnych kątów ramienia do nieulotnej pamięci
 // Zapis odbywa się teraz z poziomu WATIR-ARDUINO.ino, po zaktualizowaniu struktury watirConfig
 
-void ustawNadRoslina(int roslina, int pPan, int pTilt) {
+void plynnyRuchSerwa(int doceloweX, int doceloweY) {
     uzyjSerw(true);
-    aktualnaPozycjaX = pPan;
-    aktualnaPozycjaY = pTilt;
+    
+    // Obcinamy limity do 15-165 by uniknac blokowania mechanicznego (serwo X: 90-130)
+    doceloweX = constrain(doceloweX, 90, 130);
+    doceloweY = constrain(doceloweY, 15, 165);
 
-    serwoX.write(aktualnaPozycjaX);
-    serwoY.write(aktualnaPozycjaY);
-    delay(1000); // Odczekaj, aż ramię fizycznie dojedzie na pozycję
+    // Krok po kroku aż do osiągnięcia celu
+    while (aktualnaPozycjaX != doceloweX || aktualnaPozycjaY != doceloweY) {
+        if (aktualnaPozycjaX < doceloweX) aktualnaPozycjaX++;
+        else if (aktualnaPozycjaX > doceloweX) aktualnaPozycjaX--;
+        
+        if (aktualnaPozycjaY < doceloweY) aktualnaPozycjaY++;
+        else if (aktualnaPozycjaY > doceloweY) aktualnaPozycjaY--;
+        
+        serwoX.write(aktualnaPozycjaX);
+        serwoY.write(aktualnaPozycjaY);
+        delay(20); // 20ms opóźnienia na stopień daje płynny, dość powolny ruch
+    }
+}
+
+void ustawNadRoslina(int roslina, int pPan, int pTilt) {
+    plynnyRuchSerwa(pPan, pTilt);
+    delay(1000); // 1 sekunda na uspokojenie się wężyka po płynnym ruchu
 }
 
 // Odczyt skrajnych wychyleń joysticka do menu
@@ -113,18 +129,15 @@ void aktualizujSerwa(bool blokadaSerw) {
         else if (oy < martwaStrefaMin) aktualnaPozycjaY -= krokSerwa;
     }
 
-    // Zabezpieczenie limitów ruchu (0 - 180 stopni)
-    aktualnaPozycjaX = constrain(aktualnaPozycjaX, 0, 180);
-    aktualnaPozycjaY = constrain(aktualnaPozycjaY, 0, 180);
+    // Zabezpieczenie limitów ruchu (serwo X: 90-130, serwo Y: 15-165 by uniknac przegrzania)
+    aktualnaPozycjaX = constrain(aktualnaPozycjaX, 90, 130);
+    aktualnaPozycjaY = constrain(aktualnaPozycjaY, 15, 165);
 
     if (serwoX.attached()) serwoX.write(aktualnaPozycjaX);
     if (serwoY.attached()) serwoY.write(aktualnaPozycjaY);
 }
 void powrotDoBazy() {
-    aktualnaPozycjaX = 90;
-    aktualnaPozycjaY = 90;
-    serwoX.write(90);
-    serwoY.write(90);
+    plynnyRuchSerwa(90, 90);
     delay(1000);
 }
 
@@ -134,11 +147,7 @@ int pobierzPozycjeSerwaY() { return aktualnaPozycjaY; }
 
 // Bezpośrednie ustawienie pozycji serw z WiFi (z /api/move i /api/config)
 void ustawPozycjeSerwaWiFi(int x, int y) {
-    uzyjSerw(true); // Upewnij się, że serwa są podłączone
-    aktualnaPozycjaX = constrain(x, 0, 180);
-    aktualnaPozycjaY = constrain(y, 0, 180);
-    serwoX.write(aktualnaPozycjaX);
-    serwoY.write(aktualnaPozycjaY);
+    plynnyRuchSerwa(x, y);
 }
 
 // --- NOWE FUNKCJE DO MENU LCD ---
@@ -211,8 +220,8 @@ void calibratePlantPosition(int &pan, int &tilt, int roslina) {
             else if (act == JOY_UP) aktualnaPozycjaY -= krokSerwa;
             else if (act == JOY_DOWN) aktualnaPozycjaY += krokSerwa;
             
-            aktualnaPozycjaX = constrain(aktualnaPozycjaX, 0, 180);
-            aktualnaPozycjaY = constrain(aktualnaPozycjaY, 0, 180);
+            aktualnaPozycjaX = constrain(aktualnaPozycjaX, 90, 130);
+            aktualnaPozycjaY = constrain(aktualnaPozycjaY, 15, 165);
             
             serwoX.write(aktualnaPozycjaX);
             serwoY.write(aktualnaPozycjaY);

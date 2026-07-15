@@ -14,6 +14,19 @@ data class DirectionRequest(
     val direction: String
 )
 
+data class EspDirectionResponse(
+    val status: String,
+    val message: String,
+    val pan: Int? = null,
+    val tilt: Int? = null
+)
+
+data class DirectionResponse(
+    val status: String,
+    val message: String,
+    val esp_response: EspDirectionResponse? = null
+)
+
 data class TelemetryDbRow(
     val id: Int,
     val device_id: String,
@@ -37,7 +50,8 @@ data class PlantProfile(
     val check_interval_ms: Int,
     val pan: Int,
     val tilt: Int,
-    val sensor: Int
+    val sensor: Int,
+    val pump_power: Int
 )
 
 data class PlantProfileListResponse(
@@ -58,7 +72,27 @@ data class PlantProfileRequest(
     val check_interval_ms: Int,
     val pan: Int,
     val tilt: Int,
-    val sensor: Int
+    val sensor: Int,
+    val pump_power: Int
+)
+
+data class GlobalSettings(
+    val id: Int = 1,
+    val min_temp_block: Int,
+    val max_temp_force: Int,
+    val min_air_humidity_force: Int
+)
+
+data class GlobalSettingsRequest(
+    val min_temp_block: Int,
+    val max_temp_force: Int,
+    val min_air_humidity_force: Int
+)
+
+data class GlobalSettingsResponse(
+    val status: String,
+    val message: String? = null,
+    val data: GlobalSettings? = null
 )
 
 data class PlantProfileResponse(
@@ -71,5 +105,7 @@ data class PlantProfileResponse(
 data class PumpRequest(
     val device_id: String = "WATIR_01",
     val power: Int,
-    val duration: Int = 0
+    val duration: Int = 0,
+    val pan: Int? = null,
+    val tilt: Int? = null
 )

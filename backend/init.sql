@@ -26,11 +26,12 @@ CREATE TABLE IF NOT EXISTS plant_profiles (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     moisture_threshold INT NOT NULL CHECK (moisture_threshold >= 0 AND moisture_threshold <= 100),
-    auto_watering BOOLEAN DEFAULT true,
+    auto_watering BOOLEAN DEFAULT TRUE,
     check_interval_ms INT DEFAULT 10000,
-    pan INT NOT NULL DEFAULT 90 CHECK (pan >= 0 AND pan <= 180),
-    tilt INT NOT NULL DEFAULT 90 CHECK (tilt >= 0 AND tilt <= 180),
-    sensor INT DEFAULT 1 CHECK (sensor IN (1, 2)) -- Wybór czujnika (1=G1, 2=G2)
+    pan INT NOT NULL CHECK (pan >= 0 AND pan <= 180) DEFAULT 90,
+    tilt INT NOT NULL CHECK (tilt >= 0 AND tilt <= 180) DEFAULT 90,
+    sensor INT DEFAULT 1 CHECK (sensor IN (1, 2)),
+    pump_power INT DEFAULT 70 CHECK (pump_power >= 0 AND pump_power <= 100)
 );
 
 -- ==========================================
@@ -38,12 +39,23 @@ CREATE TABLE IF NOT EXISTS plant_profiles (
 -- ==========================================
 
 -- Indeks główny: backend zawsze robi ORDER BY timestamp DESC
-CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp
-    ON telemetry_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_telemetry_time ON telemetry_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_telemetry_device ON telemetry_logs (device_id);
 
--- Indeks pomocniczy: filtrowanie po urządzeniu (GET /api/telemetry?device_id=...)
-CREATE INDEX IF NOT EXISTS idx_telemetry_device_id
-    ON telemetry_logs (device_id);
+-- ==========================================
+-- Tabela 3: Ustawienia Globalne Systemu (BME280)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS global_settings (
+    id SERIAL PRIMARY KEY,
+    min_temp_block INT DEFAULT 5,
+    max_temp_force INT DEFAULT 35,
+    min_air_humidity_force INT DEFAULT 30
+);
+
+-- Wstawienie wartości domyślnych (jeśli tabela jest pusta)
+INSERT INTO global_settings (id, min_temp_block, max_temp_force, min_air_humidity_force)
+VALUES (1, 5, 35, 30)
+ON CONFLICT (id) DO NOTHING;
 
 -- Indeks złożony: device_id + timestamp razem — najszybszy dla zapytań
 CREATE INDEX IF NOT EXISTS idx_telemetry_device_timestamp

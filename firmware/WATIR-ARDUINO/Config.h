@@ -12,11 +12,13 @@ struct WatirConfig {
   int p1_pan;
   int p1_tilt;
   int p1_pump_power;
+  char p1_name[20];
   int p2_moisture;
   int p2_sensor;
   int p2_pan;
   int p2_tilt;
   int p2_pump_power;
+  char p2_name[20];
   int min_temp_block;
   int max_temp_force;
   int min_air_humidity_force;

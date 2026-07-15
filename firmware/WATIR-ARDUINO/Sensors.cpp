@@ -17,8 +17,8 @@
 // Piny dla czujników środowiskowych
 const int pinGleba1 = A0;  
 const int pinGleba2 = A1; 
-const int pinTrig = 8;
-const int pinEcho = 7;
+const int pinTrig = 7;
+const int pinEcho = 8;
 
 // Piny SPI dla BME280: SCK=13, MISO=12, MOSI=11, CS=10
 #define BME_CS 10

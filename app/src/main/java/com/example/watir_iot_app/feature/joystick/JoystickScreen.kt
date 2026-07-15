@@ -52,6 +52,13 @@ import com.example.watir_iot_app.data.model.PlantProfile
 import com.example.watir_iot_app.viewmodel.WatirViewModel
 import kotlin.math.roundToInt
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JoystickScreen(watirViewModel: WatirViewModel) {
@@ -91,8 +98,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             value = pumpPower,
             onValueChange = {
                 pumpPower = it
-                val finalPumpPower = 45f + ((pumpPower - 1) * (60f - 45f))/(100f - 1f)
-                watirViewModel.setPumpPower(finalPumpPower.roundToInt())
+                watirViewModel.setPumpPower(pumpPower.roundToInt())
             },
             valueRange = 1f..100f,
             steps = 99,
@@ -115,6 +121,10 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             // Strzałka GÓRA
             ArrowButton(
                 icon = Icons.Default.KeyboardArrowUp,
+                description = "Góra",
+                color = watirBlue,
+                onStartMove = { watirViewModel.startContinuousMove("prawo") },
+                onStopMove = { watirViewModel.stopContinuousMove() }
                 description = stringResource(R.string.direction_up),
                 color = MaterialTheme.colorScheme.primary,
                 onClick = { watirViewModel.moveServo("gora") }
@@ -127,6 +137,10 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             ) {
                 ArrowButton(
                     icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    description = "Lewo",
+                    color = watirBlue,
+                    onStartMove = { watirViewModel.startContinuousMove("dol") },
+                    onStopMove = { watirViewModel.stopContinuousMove() }
                     description = stringResource(R.string.direction_left),
                     color = MaterialTheme.colorScheme.primary,
                     onClick = { watirViewModel.moveServo("lewo") }
@@ -134,6 +148,10 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                 Spacer(modifier = Modifier.width(48.dp))
                 ArrowButton(
                     icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    description = "Prawo",
+                    color = watirBlue,
+                    onStartMove = { watirViewModel.startContinuousMove("gora") },
+                    onStopMove = { watirViewModel.stopContinuousMove() }
                     description = stringResource(R.string.direction_right),
                     color = MaterialTheme.colorScheme.primary,
                     onClick = { watirViewModel.moveServo("prawo") }
@@ -143,6 +161,10 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             // Strzałka DÓŁ
             ArrowButton(
                 icon = Icons.Default.KeyboardArrowDown,
+                description = "Dół",
+                color = watirBlue,
+                onStartMove = { watirViewModel.startContinuousMove("lewo") },
+                onStopMove = { watirViewModel.stopContinuousMove() }
                 description = stringResource(R.string.direction_down),
                 color = MaterialTheme.colorScheme.primary,
                 onClick = { watirViewModel.moveServo("dol") }
@@ -207,8 +229,19 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         ) {
             Button(
                 onClick = {
-                    val finalPumpPower = 45f + ((pumpPower - 1) * (60f - 45f))/(100f - 1f)
-                    watirViewModel.triggerPump(power = finalPumpPower.roundToInt(), duration = 1500)
+                    if (selectedPlant != null) {
+                        watirViewModel.triggerPump(
+                            power = pumpPower.roundToInt(), 
+                            duration = 1500,
+                            pan = selectedPlant!!.pan,
+                            tilt = selectedPlant!!.tilt
+                        )
+                    } else {
+                        watirViewModel.triggerPump(
+                            power = pumpPower.roundToInt(), 
+                            duration = 1500
+                        )
+                    }
                 },
                 modifier = Modifier
                     .weight(0.4f)
@@ -252,22 +285,37 @@ private fun ArrowButton(
     icon: ImageVector,
     description: String,
     color: Color,
-    onClick: () -> Unit
+    onStartMove: () -> Unit,
+    onStopMove: () -> Unit
 ) {
-    IconButton(
-        onClick = onClick,
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            onStartMove()
+        } else {
+            onStopMove()
+        }
+    }
+
+    Box(
         modifier = Modifier
             .size(64.dp)
-            .clip(CircleShape),
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = color,
-            contentColor = Color.White
-        )
+            .clip(CircleShape)
+            .background(if (isPressed) color.copy(alpha = 0.7f) else color)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                onClick = {}
+            ),
+        contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = description,
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.size(36.dp),
+            tint = Color.White
         )
     }
 }

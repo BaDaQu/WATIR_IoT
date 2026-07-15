@@ -58,6 +58,12 @@
     <string name="settings_language">Language</string>
     <string name="lang_pl">Polish</string>
     <string name="lang_en">English</string>
+    <string name="settings_climate_title">System Climate (BME280)</string>
+    <string name="settings_climate_min_temp">Min Temp (°C)</string>
+    <string name="settings_climate_max_temp">Max Temp (°C)</string>
+    <string name="settings_climate_min_hum">Min Hum. (%)</string>
+    <string name="settings_climate_save">Save Climate Parameters</string>
+    <string name="settings_pump_power_label">Pump Power (%)</string>
     <string name="error_prefix">Error: %1$s</string>
     <string name="success_prefix">Success: %1$s</string>
 </resources>

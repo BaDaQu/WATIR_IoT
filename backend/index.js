@@ -280,12 +280,12 @@ app.delete('/api/telemetry', async (req, res) => {
 // ==========================================
 app.post('/api/move', async (req, res) => {
   try {
-    const { device_id = 'WATIR_01', axis, value } = req.body;
+    const { device_id = 'WATIR_01', axis, value, direction } = req.body;
 
-    if (!axis || value === undefined) {
+    if (!direction && (!axis || value === undefined)) {
       return res.status(400).json({
         status: 'error',
-        message: 'Brakujące parametry: wymagane axis ("X" lub "Y") oraz value'
+        message: 'Brakujące parametry: wymagane axis i value, LUB direction'
       });
     }
 
@@ -299,13 +299,15 @@ app.post('/api/move', async (req, res) => {
     }
 
     console.log(`➡️ Przekierowanie komendy do ${device_id} na adres: http://${espIp}/api/move`);
+    
+    const payload = direction ? { direction } : { axis, value };
 
     const response = await fetch(`http://${espIp}/api/move`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ axis, value }),
+      body: JSON.stringify(payload),
     });
 
     if (response.ok) {
@@ -338,7 +340,7 @@ app.post('/api/move', async (req, res) => {
 // ==========================================
 app.post('/api/pump', async (req, res) => {
   try {
-    const { device_id = 'WATIR_01', power, duration } = req.body;
+    const { device_id = 'WATIR_01', power, duration, pan, tilt } = req.body;
 
     const espIp = activeDevices[device_id];
 
@@ -352,6 +354,8 @@ app.post('/api/pump', async (req, res) => {
     const payload = {};
     if (power !== undefined) payload.power = power;
     if (duration !== undefined) payload.duration = duration;
+    if (pan !== undefined) payload.pan = pan;
+    if (tilt !== undefined) payload.tilt = tilt;
 
     console.log(`➡️ Przekierowanie komendy pompy do ${device_id} na adres: http://${espIp}/api/pump`);
 
@@ -453,8 +457,8 @@ app.post('/api/plants', async (req, res) => {
     if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
     const result = await pool.query(
-      `INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms, pan, tilt, sensor)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      `INSERT INTO plant_profiles (name, moisture_threshold, auto_watering, check_interval_ms, pan, tilt, sensor, pump_power)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [
         data.name,
         data.moisture_threshold,
@@ -462,7 +466,8 @@ app.post('/api/plants', async (req, res) => {
         data.check_interval_ms ?? 10000,
         data.pan ?? 90,
         data.tilt ?? 90,
-        data.sensor ?? 1
+        data.sensor ?? 1,
+        data.pump_power ?? 70
       ]
     );
     res.status(201).json({ status: 'success', message: `Profil "${data.name}" został utworzony.`, data: result.rows[0] });
@@ -488,8 +493,9 @@ app.put('/api/plants/:id', async (req, res) => {
            check_interval_ms = $4,
            pan = $5,
            tilt = $6,
-           sensor = $7
-       WHERE id = $8 RETURNING *`,
+           sensor = $7,
+           pump_power = $8
+       WHERE id = $9 RETURNING *`,
       [
         data.name,
         data.moisture_threshold,
@@ -498,6 +504,7 @@ app.put('/api/plants/:id', async (req, res) => {
         data.pan ?? 90,
         data.tilt ?? 90,
         data.sensor ?? 1,
+        data.pump_power ?? 70,
         id
       ]
     );
@@ -519,7 +526,7 @@ app.patch('/api/plants/:id', async (req, res) => {
     const errors = validatePlantProfile(data, false);
     if (errors.length > 0) return res.status(400).json({ status: 'error', message: errors.join(', ') });
 
-    const allowed = ['name', 'moisture_threshold', 'auto_watering', 'check_interval_ms', 'pan', 'tilt', 'sensor'];
+    const allowed = ['name', 'moisture_threshold', 'auto_watering', 'check_interval_ms', 'pan', 'tilt', 'sensor', 'pump_power'];
     const fields = Object.keys(data).filter(k => allowed.includes(k));
     if (fields.length === 0) return res.status(400).json({ status: 'error', message: 'Żadne z podanych pól nie jest dozwolone.' });
 
@@ -542,7 +549,41 @@ app.delete('/api/plants/:id', async (req, res) => {
     const { id } = req.params;
     const result = await pool.query('DELETE FROM plant_profiles WHERE id = $1 RETURNING *', [id]);
     if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: `Profil o ID ${id} nie istnieje.` });
-    res.status(200).json({ status: 'success', message: `Profil "${result.rows[0].name}" został usunięty.`, deleted: result.rows[0] });
+    
+    const deletedProfile = result.rows[0];
+    
+    // Próba poinformowania ESP32 o usunięciu profilu, aby przestało podlewać
+    const device_id = 'WATIR_01'; // Domyślne urządzenie
+    const espIp = activeDevices[device_id];
+    let espNotified = false;
+    
+    if (espIp) {
+      const clearConfig = {
+        config: {
+          target_plant: deletedProfile.sensor === 1 ? 1 : 2,
+          name: "Brak",
+          moisture_threshold: 0 // Ważne: ustawienie na 0 wyłącza automatyczne podlewanie
+        }
+      };
+      
+      try {
+        await fetch(`http://${espIp}/api/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clearConfig),
+        });
+        espNotified = true;
+        console.log(`📡 Wysłano komendę czyszczenia profilu ${deletedProfile.name} do ESP32.`);
+      } catch (e) {
+        console.warn(`⚠️ Nie udało się powiadomić ESP32 o usunięciu profilu: ${e.message}`);
+      }
+    }
+
+    res.status(200).json({ 
+      status: 'success', 
+      message: `Profil "${deletedProfile.name}" został usunięty.${espNotified ? ' Pomyślnie wyczyszczono na ESP32.' : ' ESP32 aktualnie niedostępne (zostanie zaktualizowane przy najbliższej synchronizacji).'}`, 
+      deleted: deletedProfile 
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: 'error', message: 'Błąd usuwania profilu.' });
@@ -560,16 +601,26 @@ app.post('/api/plants/:id/apply', async (req, res) => {
 
     const profile = result.rows[0];
 
+    // Pobierz ustawienia globalne
+    const settingsResult = await pool.query('SELECT * FROM global_settings WHERE id = 1');
+    const globalSettings = settingsResult.rows.length > 0 ? settingsResult.rows[0] : { min_temp_block: 5, max_temp_force: 35, min_air_humidity_force: 30 };
+
     // Dodajemy pozycje serw (pan/tilt) i identyfikator rośliny do konfiguracji wysyłanej do ESP
     const espConfig = {
       config: {
-        target_plant: parseInt(id) === 1 ? 1 : 2, // Mapujemy ID na 1 lub 2
+        target_plant: profile.sensor === 1 ? 1 : 2, // Mapujemy na podstawie podłączonego czujnika, a nie ID w bazie!
+        name: profile.name,
         moisture_threshold: profile.moisture_threshold,
         auto_watering: profile.auto_watering,
         check_interval_ms: profile.check_interval_ms,
         pan: profile.pan,
         tilt: profile.tilt,
-        sensor: profile.sensor
+        sensor: profile.sensor,
+        pump_power: profile.pump_power,
+        // Dodajemy ustawienia globalne
+        min_temp_block: globalSettings.min_temp_block,
+        max_temp_force: globalSettings.max_temp_force,
+        min_air_humidity_force: globalSettings.min_air_humidity_force
       }
     };
 
@@ -614,6 +665,81 @@ app.post('/api/plants/:id/apply', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: 'error', message: 'Błąd aplikowania profilu.' });
+  }
+});
+
+// ==========================================
+// USTAWIENIA GLOBALNE (BME280)
+// ==========================================
+
+// GET /api/settings
+app.get('/api/settings', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM global_settings WHERE id = 1');
+    if (result.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Brak ustawień globalnych.' });
+    }
+    res.status(200).json({ status: 'success', data: result.rows[0] });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: 'error', message: 'Błąd pobierania ustawień.' });
+  }
+});
+
+// POST /api/settings
+app.post('/api/settings', async (req, res) => {
+  try {
+    const { min_temp_block, max_temp_force, min_air_humidity_force } = req.body;
+    
+    // Zapis w bazie
+    const result = await pool.query(
+      `UPDATE global_settings 
+       SET min_temp_block = COALESCE($1, min_temp_block), 
+           max_temp_force = COALESCE($2, max_temp_force), 
+           min_air_humidity_force = COALESCE($3, min_air_humidity_force)
+       WHERE id = 1 RETURNING *`,
+      [min_temp_block, max_temp_force, min_air_humidity_force]
+    );
+
+    const settings = result.rows[0];
+
+    // Natychmiastowa wysyłka do ESP32
+    const device_id = 'WATIR_01';
+    const espIp = activeDevices[device_id];
+    let espSent = false;
+
+    if (espIp) {
+      const espConfig = {
+        config: {
+          min_temp_block: settings.min_temp_block,
+          max_temp_force: settings.max_temp_force,
+          min_air_humidity_force: settings.min_air_humidity_force
+        }
+      };
+      
+      try {
+        await fetch(`http://${espIp}/api/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(espConfig),
+        });
+        espSent = true;
+        console.log(`📡 Wysłano ustawienia globalne do ${device_id}`);
+      } catch (e) {
+        console.warn(`⚠️ Nie udało się wysłać ustawień do ESP32: ${e.message}`);
+      }
+    }
+
+    res.status(200).json({ 
+      status: 'success', 
+      message: 'Ustawienia globalne zapisane.', 
+      data: settings,
+      esp_sent: espSent
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: 'error', message: 'Błąd zapisu ustawień.' });
   }
 });
 
