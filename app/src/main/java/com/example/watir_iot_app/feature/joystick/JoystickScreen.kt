@@ -2,7 +2,6 @@ package com.example.watir_iot_app.feature.joystick
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,7 +47,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.watir_iot_app.R
 import com.example.watir_iot_app.data.model.PlantProfile
 import com.example.watir_iot_app.viewmodel.WatirViewModel
@@ -73,9 +71,6 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
 
     var pumpPower by remember { mutableFloatStateOf(50f) }
 
-    // Paleta Kolorów z Logo WATIR (Przywrócona)
-    val watirNavy = Color(0xFF102A43)
-    val watirBlue = Color(0xFF2EB4E6)
     val watirGreen = Color(0xFF549E39)
 
     Column(
@@ -92,11 +87,10 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
         )
 
         Spacer(modifier = Modifier.height(24.dp))
-
         Text(
-            text = "Moc pompy: ${pumpPower.roundToInt()}%",
+            text = stringResource(R.string.pump_power_label, pumpPower.roundToInt()),
             style = MaterialTheme.typography.titleMedium,
-            color = watirNavy,
+            color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold
         )
 
@@ -109,9 +103,9 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             valueRange = 1f..100f,
             steps = 99,
             colors = SliderDefaults.colors(
-                thumbColor = watirBlue,
-                activeTrackColor = watirBlue,
-                inactiveTrackColor = watirBlue.copy(alpha = 0.3f)
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.onPrimary
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -131,6 +125,9 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                 color = watirBlue,
                 onStartMove = { watirViewModel.startContinuousMove("prawo") },
                 onStopMove = { watirViewModel.stopContinuousMove() }
+                description = stringResource(R.string.direction_up),
+                color = MaterialTheme.colorScheme.primary,
+                onClick = { watirViewModel.moveServo("gora") }
             )
 
             // Strzałki LEWO i PRAWO
@@ -144,6 +141,9 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     color = watirBlue,
                     onStartMove = { watirViewModel.startContinuousMove("dol") },
                     onStopMove = { watirViewModel.stopContinuousMove() }
+                    description = stringResource(R.string.direction_left),
+                    color = MaterialTheme.colorScheme.primary,
+                    onClick = { watirViewModel.moveServo("lewo") }
                 )
                 Spacer(modifier = Modifier.width(48.dp))
                 ArrowButton(
@@ -152,6 +152,9 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     color = watirBlue,
                     onStartMove = { watirViewModel.startContinuousMove("gora") },
                     onStopMove = { watirViewModel.stopContinuousMove() }
+                    description = stringResource(R.string.direction_right),
+                    color = MaterialTheme.colorScheme.primary,
+                    onClick = { watirViewModel.moveServo("prawo") }
                 )
             }
 
@@ -162,6 +165,9 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                 color = watirBlue,
                 onStartMove = { watirViewModel.startContinuousMove("lewo") },
                 onStopMove = { watirViewModel.stopContinuousMove() }
+                description = stringResource(R.string.direction_down),
+                color = MaterialTheme.colorScheme.primary,
+                onClick = { watirViewModel.moveServo("dol") }
             )
         }
 
@@ -191,8 +197,8 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true)
                     .fillMaxWidth(),
                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
-                    focusedBorderColor = watirBlue,
-                    unfocusedBorderColor = watirNavy.copy(alpha = 0.5f)
+                    focusedBorderColor = MaterialTheme.colorScheme.onPrimary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.primary
                 ),
                 shape = MaterialTheme.shapes.medium
             )
@@ -203,7 +209,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             ) {
                 plantProfiles.forEach { plant ->
                     DropdownMenuItem(
-                        text = { Text(plant.name, color = watirNavy) },
+                        text = { Text(plant.name, color = MaterialTheme.colorScheme.primary) },
                         onClick = {
                             selectedPlant = plant
                             expanded = false
@@ -241,7 +247,7 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     .weight(0.4f)
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = watirBlue
+                    containerColor = MaterialTheme.colorScheme.primary
                 ),
                 shape = MaterialTheme.shapes.medium
             ) {
@@ -253,8 +259,8 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
                     selectedPlant?.let { plant ->
                         watirViewModel.saveCurrentPositionForPlant(
                             id = plant.id,
-                            onSuccess = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() },
-                            onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                            onSuccess = { msg -> Toast.makeText(context, context.getString(R.string.success_prefix, msg), Toast.LENGTH_SHORT).show() },
+                            onError = { err -> Toast.makeText(context, context.getString(R.string.error_prefix, err), Toast.LENGTH_SHORT).show() }
                         )
                     }
                 },

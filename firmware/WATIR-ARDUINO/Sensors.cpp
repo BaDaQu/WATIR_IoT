@@ -39,7 +39,7 @@ bool konfigurujCzujniki() {
   pinMode(pinEcho, INPUT);
   
   // Próba inicjalizacji BME280 po SPI
-  bmeOK = bme.begin(); // Dla SPI adres nie ma znaczenia
+  bmeOK = bme.begin();
   return bmeOK;
 }
 

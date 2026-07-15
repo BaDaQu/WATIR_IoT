@@ -32,7 +32,6 @@ const int martwaStrefaMax = 600;
 const int krokSerwa = 5;
 
 // Zmienne pozycji zostały przeniesione do głównego obiektu konfiguracji w WATIR-ARDUINO.ino,
-// dlatego usuwamy lokalne stałe adresów EEPROM.
 
 // Włączanie lub usypianie serw (oszczędność prądu i redukcja drgań)
 void uzyjSerw(bool wlacz) {

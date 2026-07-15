@@ -14,7 +14,6 @@
 //   OUT2 → pompa (-)
 //
 // UWAGA: Zdjąć zworkę (jumper) z ENA na module L298N!
-// UWAGA: A4/A5 są zajęte przez I2C (LCD) — nie używać!
 //
 
 #include "Watering.h"
