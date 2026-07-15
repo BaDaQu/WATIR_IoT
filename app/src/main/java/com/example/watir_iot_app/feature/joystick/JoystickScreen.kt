@@ -2,6 +2,7 @@ package com.example.watir_iot_app.feature.joystick
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -71,6 +72,8 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
 
     var pumpPower by remember { mutableFloatStateOf(50f) }
 
+    val watirNavy = Color(0xFF102A43)
+    val watirBlue = Color(0xFF2EB4E6)
     val watirGreen = Color(0xFF549E39)
 
     Column(
@@ -121,13 +124,10 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             // Strzałka GÓRA
             ArrowButton(
                 icon = Icons.Default.KeyboardArrowUp,
-                description = "Góra",
+                description = stringResource(R.string.direction_up),
                 color = watirBlue,
                 onStartMove = { watirViewModel.startContinuousMove("prawo") },
                 onStopMove = { watirViewModel.stopContinuousMove() }
-                description = stringResource(R.string.direction_up),
-                color = MaterialTheme.colorScheme.primary,
-                onClick = { watirViewModel.moveServo("gora") }
             )
 
             // Strzałki LEWO i PRAWO
@@ -137,37 +137,28 @@ fun JoystickScreen(watirViewModel: WatirViewModel) {
             ) {
                 ArrowButton(
                     icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                    description = "Lewo",
+                    description = stringResource(R.string.direction_left),
                     color = watirBlue,
                     onStartMove = { watirViewModel.startContinuousMove("dol") },
                     onStopMove = { watirViewModel.stopContinuousMove() }
-                    description = stringResource(R.string.direction_left),
-                    color = MaterialTheme.colorScheme.primary,
-                    onClick = { watirViewModel.moveServo("lewo") }
                 )
                 Spacer(modifier = Modifier.width(48.dp))
                 ArrowButton(
                     icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    description = "Prawo",
+                    description = stringResource(R.string.direction_right),
                     color = watirBlue,
                     onStartMove = { watirViewModel.startContinuousMove("gora") },
                     onStopMove = { watirViewModel.stopContinuousMove() }
-                    description = stringResource(R.string.direction_right),
-                    color = MaterialTheme.colorScheme.primary,
-                    onClick = { watirViewModel.moveServo("prawo") }
                 )
             }
 
             // Strzałka DÓŁ
             ArrowButton(
                 icon = Icons.Default.KeyboardArrowDown,
-                description = "Dół",
+                description = stringResource(R.string.direction_down),
                 color = watirBlue,
                 onStartMove = { watirViewModel.startContinuousMove("lewo") },
                 onStopMove = { watirViewModel.stopContinuousMove() }
-                description = stringResource(R.string.direction_down),
-                color = MaterialTheme.colorScheme.primary,
-                onClick = { watirViewModel.moveServo("dol") }
             )
         }
 
