@@ -16,7 +16,7 @@ const int pinSerwo1 = 9;
 const int pinSerwo2 = 6; 
 const int pinJoyX = A3;
 const int pinJoyY = A2;
-const int pinJoyBtn = 2; // Dodano pin dla przycisku
+const int pinJoyBtn = 2; 
 
 Servo serwoX; // Serwo do ruchu lewo/prawo
 Servo serwoY; // Serwo do ruchu góra/dół
@@ -32,7 +32,6 @@ const int martwaStrefaMax = 600;
 const int krokSerwa = 5;
 
 // Zmienne pozycji zostały przeniesione do głównego obiektu konfiguracji w WATIR-ARDUINO.ino,
-// dlatego usuwamy lokalne stałe adresów EEPROM.
 
 // Włączanie lub usypianie serw (oszczędność prądu i redukcja drgań)
 void uzyjSerw(bool wlacz) {
